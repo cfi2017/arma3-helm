@@ -186,7 +186,7 @@ class RuntimeTest(unittest.TestCase):
         args = runtime.server_args(self.settings)
         self.assertIn('-test=spaces and $(literal)', args)
         self.assertIn('-serverMod=' + str(self.workshop / '1234'), args)
-        self.assertIn('-mod=' + str(self.workshop / '3020755032'), args)
+        self.assertIn(str(self.workshop / '3020755032'), next(x for x in args if x.startswith('-mod=')))
         self.assertNotIn('test-admin', ' '.join(args))
         server['hostname'] = 'bad\nvalue'
         with self.assertRaises(ValueError):
@@ -197,5 +197,6 @@ class RuntimeTest(unittest.TestCase):
         nested.mkdir(parents=True)
         (nested / 'a3a.pbo').touch()
         args = runtime.server_args(self.settings)
-        self.assertIn('-mod=' + str(nested.parent), args)
-        self.assertNotIn('-mod=' + str(self.workshop / '3020755032'), args)
+        mod_arg = next(x for x in args if x.startswith('-mod='))
+        self.assertIn(str(nested.parent), mod_arg)
+        self.assertNotIn(str(self.workshop / '3020755032') + ';', mod_arg)

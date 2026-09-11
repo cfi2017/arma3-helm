@@ -27,6 +27,7 @@ mods:
   # Individual Workshop IDs, not collections. Include dependencies explicitly.
   workshop:
     - "3020755032" # Antistasi Ultimate (includes the Altis mission)
+    - "450814997" # CBA_A3 (required by Antistasi Ultimate)
   serverWorkshop: []
   # Additional mod directories under /arma3; upload content to the data PVC.
   local: []
