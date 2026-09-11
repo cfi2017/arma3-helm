@@ -158,13 +158,14 @@ def generate_config(server):
         f'BattlEye = {int(server["battleye"])};',
         f'verifySignatures = {server["verifySignatures"]};',
         f'allowedFilePatching = {server["allowedFilePatching"]};',
+        'autoSelectMission = 1;',
         f'steamQueryPort = {server["port"] + 1};',
         'voteThreshold = 1.5;',
         'admins[] = {' + ', '.join(cfg_string(x) for x in server['admin']['uids']) + '};',
     ]
     mission = server['mission']
     if mission['template']:
-        lines += ['class Missions {', '  class Antistasi {',
+        lines += ['class Missions {', '  class Mission1 {',
                   '    template = ' + cfg_string(mission['template']) + ';',
                   '    difficulty = ' + cfg_string(mission['difficulty']) + ';',
                   '    class Params {']

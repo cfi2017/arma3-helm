@@ -181,6 +181,8 @@ class RuntimeTest(unittest.TestCase):
         self.assertIn('passwordAdmin = "a""b";', config)
         self.assertIn('autoLoadLastGame = 60;', config)
         self.assertIn('persistent = 1;', config)
+        self.assertIn('autoSelectMission = 1;', config)
+        self.assertIn('class Mission1 {', config)
         server['extraArgs'] = ['-test=spaces and $(literal)']
         self.settings['mods']['serverWorkshop'] = ['1234']
         args = runtime.server_args(self.settings)
