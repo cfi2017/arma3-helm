@@ -41,7 +41,8 @@ server:
   world: empty
   limitFPS: 60
   # Each item is one argument, never shell-expanded.
-  extraArgs: ["-noSound"]
+  # Start the configured mission cycle without requiring an admin to select it.
+  extraArgs: ["-noSound", "-autoInit"]
   cdlc: []
   persistent: true
   battleye: true

@@ -34,6 +34,8 @@ class ChartTest(unittest.TestCase):
         deployment = kind(objects, 'Deployment')[0]
         self.assertEqual(deployment['spec']['strategy']['type'], 'Recreate')
         self.assertEqual(deployment['spec']['replicas'], 1)
+        settings = yaml.safe_load(kind(objects, 'ConfigMap')[0]['data']['settings.json'])
+        self.assertIn('-autoInit', settings['server']['extraArgs'])
         pod = deployment['spec']['template']['spec']
         self.assertFalse(pod['automountServiceAccountToken'])
         init = pod['initContainers'][0]
