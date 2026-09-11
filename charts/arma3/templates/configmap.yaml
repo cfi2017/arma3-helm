@@ -6,6 +6,8 @@ metadata:
     {{- include "arma3.labels" . | nindent 4 }}
 data:
   settings.json: |
-    {{- dict "bootstrap" .Values.bootstrap "steam" (dict "branch" .Values.steam.branch) "mods" .Values.mods "server" .Values.server | toPrettyJson | nindent 4 }}
+    {{- dict "bootstrap" .Values.bootstrap "steam" (dict "branch" .Values.steam.branch "authTimeoutSeconds" .Values.steam.authTimeoutSeconds) "mods" .Values.mods "server" .Values.server | toPrettyJson | nindent 4 }}
   runtime.py: |
     {{- .Files.Get "files/runtime.py" | nindent 4 }}
+  steam_auth.py: |
+    {{- .Files.Get "files/steam_auth.py" | nindent 4 }}

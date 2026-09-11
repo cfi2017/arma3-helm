@@ -3,3 +3,5 @@ persistence:
     existingClaim: arma3-data
   workshop:
     existingClaim: arma3-workshop
+  steam:
+    existingClaim: arma3-steam-state

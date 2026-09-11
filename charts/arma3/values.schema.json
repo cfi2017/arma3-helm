@@ -65,6 +65,10 @@
         },
         "branchPasswordKey": {
           "type": "string"
+        },
+        "authTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
@@ -72,7 +76,8 @@
         "usernameKey",
         "passwordKey",
         "branch",
-        "branchPasswordKey"
+        "branchPasswordKey",
+        "authTimeoutSeconds"
       ]
     },
     "bootstrap": {
@@ -544,11 +549,58 @@
             "annotations",
             "retain"
           ]
+        },
+        "steam": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingClaim": {
+              "type": "string"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*(Mi|Gi|Ti)$"
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ReadWriteOnce",
+                  "ReadWriteMany",
+                  "ReadWriteOncePod"
+                ]
+              },
+              "minItems": 1
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "retain": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled",
+            "existingClaim",
+            "size",
+            "storageClass",
+            "accessModes",
+            "annotations",
+            "retain"
+          ]
         }
       },
       "required": [
         "data",
-        "workshop"
+        "workshop",
+        "steam"
       ]
     },
     "resources": {

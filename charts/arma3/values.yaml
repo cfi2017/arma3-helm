@@ -8,6 +8,8 @@ image:
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 steam:
+  # Time allowed for login/Steam Guard, separate from the download timeout.
+  authTimeoutSeconds: 1800
   existingSecret: arma3-steam
   usernameKey: username
   passwordKey: password
@@ -85,6 +87,15 @@ gateway:
     battleye: ""
   annotations: {}
 persistence:
+  # Authentication and SteamCMD updates; mounted ONLY in the bootstrap container.
+  steam:
+    enabled: true
+    existingClaim: ""
+    size: 1Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    annotations: {}
+    retain: true
   data:
     enabled: true
     existingClaim: ""

@@ -6,7 +6,7 @@ The [linked beginners guide](https://official-antistasi-community.github.io/A3-A
 
 ## Install
 
-Requirements: Kubernetes 1.26+, Helm 3, a Linux amd64 node, a default storage class (or existing PVCs), and reachable UDP ports. Allow roughly 40 GiB for game data and 20 GiB for the default mod cache; larger modsets/CDLCs need more. Requests are 2 CPU / 4 GiB RAM with an 8 GiB memory limit. Fast single-core performance matters; adjust for your campaign and player count.
+Requirements: Kubernetes 1.26+, Helm 3, a Linux amd64 node, a default storage class (or existing PVCs), and reachable UDP ports. Allow roughly 40 GiB for game data and 20 GiB for the default mod cache, plus 1 GiB for Steam authentication/client state; larger modsets/CDLCs need more. Requests are 2 CPU / 4 GiB RAM with an 8 GiB memory limit. Fast single-core performance matters; adjust for your campaign and player count.
 
 Create credentials in the release namespace using your secret manager or these placeholder commands. **Passwords are never Helm values or generated Kubernetes Secrets.**
 
@@ -21,14 +21,14 @@ kubectl -n arma3 create secret generic arma3-admin \
 # Available after the publishing workflow succeeds and the package is public:
 helm upgrade --install antistasi \
   oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  --version 0.1.1 --namespace arma3 --wait --timeout 120m
+  --version 0.2.0 --namespace arma3 --wait --timeout 120m
 
 # Or install directly from this checkout:
 helm upgrade --install antistasi ./charts/arma3 \
   --namespace arma3 --wait --timeout 120m
 ```
 
-Steam credentials are passed only to the bootstrap init container through `secretKeyRef`. Use an account that can download the server and selected Workshop items (Workshop access may require owning Arma 3). Upstream requires Steam Guard disabled for unattended login; interactive challenges cannot be answered by this chart. Do not use anonymous login for Workshop downloads. Keep credentials out of committed files and shell history; the commands above contain placeholders only.
+Steam credentials are passed only to the bootstrap init container through `secretKeyRef`. Use an account that can download the server and selected Workshop items (Workshop access may require owning Arma 3). Keep Steam Guard enabled: bootstrap accepts codes through an interactive Kubernetes terminal as described below. Anonymous login was tested and could not download the Arma 3 server (`No subscription`) or the selected Workshop item. Keep credentials out of committed files and shell history; the commands above contain placeholders only.
 
 The default NodePort setup reserves **UDP 32302–32306**. Forward/open that entire range on your firewall/router and connect to **the node running the pod**, port **32302**. With the default `externalTrafficPolicy: Local`, other nodes do not forward traffic unless they have the server pod. Find it with:
 
@@ -39,6 +39,44 @@ kubectl -n arma3 logs deployment/antistasi-arma3 -c arma3 -f
 ```
 
 Initial installation can take more than an hour. Downloads happen in an init container, so startup probes cannot interrupt them. `--wait` timing out does not cancel a download; inspect logs and rerun Helm with a longer timeout if needed.
+
+## Steam Guard authentication
+
+Bootstrap first tries `login <username>` with saved Steam authentication. If Steam asks for a password, the broker supplies it from the existing Secret through its terminal. If a Steam Guard challenge appears, bootstrap waits up to **30 minutes** (`steam.authTimeoutSeconds: 1800`) and logs the exact pod/namespace command to attach. It then downloads the game and all configured Workshop items in **one session**. The download timeout starts only after login succeeds.
+
+In a second terminal while Helm is waiting:
+
+```sh
+kubectl -n arma3 get pods
+kubectl -n arma3 logs deployment/antistasi-arma3 -c bootstrap -f
+# Replace POD_NAME with the pod from the logs/get pods output:
+kubectl exec -it -n arma3 POD_NAME -c bootstrap -- \
+  python3 /chart/runtime.py auth
+```
+
+Enter your current email/Steam Mobile authenticator code when prompted. Input is hidden. If SteamCMD requests app approval, approve the login in Steam Mobile and wait; the helper exits when authentication succeeds. QR support is not assumed. The helper connects to the **existing** SteamCMD process over a local Unix socket. It does not launch another downloader or expose an HTTP service. Access requires Kubernetes `pods/exec` permission; the socket accepts one client at a time and has mode 0600 inside a mode-0700 directory.
+
+Ctrl-C or Ctrl-D detaches **without cancelling** the pending login; you can reconnect. If Steam repeats a code prompt, enter a fresh code. If Steam terminates login instead, or authentication times out, the init container fails and Kubernetes retries with its normal backoff. Download retries use `bootstrap.retries`; authentication failures are not immediately retried by the broker. To explicitly terminate the current attempt:
+
+```sh
+kubectl exec -n arma3 POD_NAME -c bootstrap -- \
+  python3 /chart/runtime.py auth --cancel
+```
+
+Kubernetes may restart the init container after cancellation. To stop bootstrapping altogether, scale the deployment to zero (or suspend the release through your GitOps controller).
+
+Authentication state lives on the **Steam PVC**, mounted only in bootstrap at `/var/lib/arma3-steam`: `steamcmd/` holds the self-updated client/config and `home/` holds Steam's home/authentication files. The chart never writes codes to files, logs, or process arguments. Raw login output is withheld from logs to avoid echoed credentials; only fixed login/approval statuses are shown. Download output is streamed with known secrets redacted. Steam manages its own authentication cache and logs within this protected volume, so treat that PVC and its backups as credentials. The game container receives only the SDK libraries it needs, not this volume or the Steam Secret.
+
+Saved authentication is reused where Steam supports it; approvals can expire or be revoked. A fresh PVC, changed account, changed password, or Steam policy may require approval again. To reset cached authentication, stop the deployment, mount **only the Steam PVC** in a maintenance pod, remove its `steamcmd/config` and `home` authentication state (or provision a fresh Steam PVC), and restart. A fresh Steam PVC is the most complete reset. Never remove the data or Workshop PVCs for an authentication reset. Do not run competing SteamCMD processes on the same Steam state.
+
+**Upgrading from 0.1.x:** version 0.2.0 adds a third, 1 GiB Steam PVC; it preserves the existing data and Workshop claims. On Helm 3.14+, merge new defaults with your existing overrides:
+
+```sh
+helm upgrade antistasi oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
+  -n arma3 --version 0.2.0 --reset-then-reuse-values --wait --timeout 150m
+```
+
+For older Helm, use `--reset-values -f your-values.yaml` instead. Plain `--reuse-values` can omit the new defaults. Use your actual namespace (for example `app-arma3-antistasi`) in both the upgrade and attach commands. Avoid `--atomic` during first authentication: an unattended Helm timeout could roll back the waiting pod. GitOps installations should set a Helm timeout long enough for approval plus the first downloads.
 
 ## First campaign
 
@@ -84,9 +122,10 @@ Set `gateway.parentRefs` and optionally `gateway.sectionNames` to attach to name
 | Volume | Mount | Contents |
 | --- | --- | --- |
 | Data, 40 GiB | `/arma3` | Server binaries, missions, keys, generated config, **`configs/profiles` campaign saves** |
+| Steam, 1 GiB | `/var/lib/arma3-steam` (bootstrap only) | SteamCMD, saved authentication and Steam home/config |
 | Workshop, 20 GiB | `/arma3/steamapps/workshop` | Download metadata and content under `content/107410/<id>` |
 
-Both PVCs default to `ReadWriteOnce` and Helm retention. `persistence.<data|workshop>` supports `existingClaim`, `storageClass`, `size`, `accessModes`, `annotations`, `retain`, and `enabled`. Empty storage class uses the cluster default; `"-"` selects no class. An existing claim takes precedence over `enabled`. Disabling persistence without an existing claim uses `emptyDir` and **loses that data when the pod is replaced**. Existing claims must be writable by the configured container UID; the pinned upstream image runs as root. If setting a non-root security context, provide compatible image/volume ownership and SteamCMD permissions.
+All three PVCs default to `ReadWriteOnce` and Helm retention. `persistence.<data|workshop|steam>` supports `existingClaim`, `storageClass`, `size`, `accessModes`, `annotations`, `retain`, and `enabled`. Empty storage class uses the cluster default; `"-"` selects no class. An existing claim takes precedence over `enabled`. Disabling persistence without an existing claim uses `emptyDir` and **loses that data when the pod is replaced**. Existing claims must be writable by the configured container UID; the pinned upstream image runs as root. If setting a non-root security context, provide compatible image/volume ownership and SteamCMD permissions.
 
 Uninstall retains chart-created claims by default. Reuse them explicitly with `existingClaim` on reinstall; the chart will not adopt or recreate populated storage automatically. Back up the data PVC (especially `configs/profiles`) with snapshots or an offline copy. The generated `configs/server.cfg` contains admin/join passwords and is mode 0600; protect backups accordingly. A single-replica Deployment with `Recreate` prevents overlapping writers during ordinary upgrades. Do not force-delete pods or run a second release against the same claims.
 
@@ -117,7 +156,7 @@ For manual content, upload mission PBOs to `/arma3/mpmissions`, and lowercase mo
 - `server.binary`, `profile`, `world`, `limitFPS`, `cdlc`, `extraArgs`: launch options. Arguments are passed directly to the server, without shell evaluation. `extraEnv` applies to the game container. The chart owns startup; upstream `ARMA_*`, `MODS_PRESET`, and `HEADLESS_CLIENTS` environment variables do not configure it. Use separate headless-client deployments if needed.
 - `resources`, `bootstrapResources`, scheduling, security contexts, probes, annotations, image credentials, extra volumes/mounts, and shutdown grace period are configurable.
 
-The chart deliberately runs its own bootstrap and directly execs the game binary using the upstream image's SteamCMD/runtime. This catches upstream's unchecked Steam failures and preserves normal Kubernetes signal handling. SteamCMD is staged in `/tmp/arma3-steamcmd`, owned by the bootstrap user, so its launcher/native binary can execute and self-update with all capabilities dropped. Its downloaded Steam SDK libraries are copied to the data PVC for the game container. The pinned published image uses `/arma3`; **upstream's v2 branch uses `/arma3/server` and a different downloader and is not compatible**. Change the image digest only after checking its SteamCMD layout.
+The chart deliberately runs its own bootstrap and directly execs the game binary using the upstream image's SteamCMD/runtime. This catches upstream's unchecked Steam failures and preserves normal Kubernetes signal handling. SteamCMD is staged persistently in `/var/lib/arma3-steam/steamcmd`, owned by the bootstrap user, so its launcher/native binary can execute and self-update with all capabilities dropped. Its downloaded Steam SDK libraries are copied to the data PVC for the game container. The pinned published image uses `/arma3`; **upstream's v2 branch uses `/arma3/server` and a different downloader and is not compatible**. Change the image digest only after checking its SteamCMD layout.
 
 Config/mod value changes trigger pod replacement via a ConfigMap checksum. External Secret changes require an explicit `kubectl -n arma3 rollout restart deployment/antistasi-arma3`. Startup/readiness probes check the UDP game socket, not mission correctness; there is no default liveness restart. The pre-stop hook sends SIGINT to Arma, with 120 seconds to exit. This does not replace an in-game campaign save.
 
@@ -130,7 +169,7 @@ nix develop -c bash scripts/kubeconform.sh  # fetches standard Kubernetes schema
 nix flake check --print-build-logs         # offline-capable checks once dependencies exist
 ```
 
-The locked flake supports Linux/macOS on x86_64/aarch64 for tooling; the game image requires Linux amd64. Optionally copy `.envrc.example` to `.envrc` and use direnv. Checks cover rendering, invalid values, persistence, secret references, route schemas, download failure handling, filename normalization, campaign preservation and config generation. No Steam credentials are used by tests. A real game/Steam/cluster smoke test is still needed for your infrastructure.
+The locked flake supports Linux/macOS on x86_64/aarch64 for tooling; the game image requires Linux amd64. Optionally copy `.envrc.example` to `.envrc` and use direnv. Checks cover rendering, invalid values, persistence, secret references, route schemas, download failure handling, filename normalization, campaign preservation and config generation. No Steam credentials are used by tests. PTY/socket tests cover password and code input, incorrect codes, app approval, detach/reconnect, cached state, cancellation, deadlines, and hidden input. Real account-specific Steam Guard approval and a game/cluster smoke test are still needed for your infrastructure.
 
 GitHub Actions validates pull requests and pushes. On chart changes pushed to `main`, or manual dispatch, **Publish chart** runs the checks, packages the chart and pushes it to `oci://ghcr.io/<owner>/<repository>/charts/arma3` using `GITHUB_TOKEN` with `packages: write`. No PAT, Pages site, chart index or repository secret is needed. Each release uses `Chart.yaml`'s SemVer; **bump it for every chart release**. Existing version tags are skipped, not overwritten. Workflows serialize publication.
 

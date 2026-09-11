@@ -40,6 +40,14 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: STEAM_USER
               valueFrom:
                 secretKeyRef:
@@ -75,6 +83,8 @@ spec:
             {{- toYaml .Values.bootstrapResources | nindent 12 }}
           volumeMounts:
             {{- include "arma3.mounts" . | nindent 12 }}
+            - name: steam
+              mountPath: /var/lib/arma3-steam
             {{- if .Values.server.existingConfigSecret }}
             - name: server-config
               mountPath: /server-config

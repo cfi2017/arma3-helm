@@ -2,6 +2,12 @@ Arma 3 is bootstrapping. Initial Steam downloads may take an hour or more.
   kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "arma3.fullname" . }} -c bootstrap -f
   kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "arma3.fullname" . }} -c arma3 -f
 
+Keep Steam Guard enabled. If bootstrap waits for approval, use its logged
+pod-specific command, or run:
+  kubectl exec -it -n {{ .Release.Namespace }} <pod-name> -c bootstrap -- python3 /chart/runtime.py auth
+Codes are hidden. Ctrl-C/D detaches; login continues waiting for up to
+{{ .Values.steam.authTimeoutSeconds }} seconds. Steam authentication is retained on the Steam PVC.
+
 {{ if eq .Values.service.type "NodePort" -}}
 Connect to a reachable IP of the node running the pod, UDP {{ .Values.server.port }}.
 Open/forward UDP {{ .Values.server.port }}-{{ add (int .Values.server.port) 4 }} on that node.

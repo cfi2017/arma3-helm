@@ -1,15 +1,15 @@
-import contextlib
 import copy
 import importlib.util
-import io
-import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import yaml
+
+sys.path.insert(0, str(Path('charts/arma3/files').resolve()))
 
 spec = importlib.util.spec_from_file_location('runtime', 'charts/arma3/files/runtime.py')
 runtime = importlib.util.module_from_spec(spec)
@@ -31,12 +31,13 @@ class RuntimeTest(unittest.TestCase):
         (self.steam_source / 'steamcmd.sh').write_text(
             '#!/bin/sh\nexec "${0%/*}/linux32/steamcmd" "$@"\n')
         (self.steam_source / 'linux32/steamcmd').write_text(
-            '#!/bin/sh\nprintf "%s\\n" "Success. Downloaded item 1234"\n')
+            '#!/bin/sh\nprintf "%s\\n" "Waiting for user info...OK" "Success. Downloaded item 1234"\n')
         for name in ('steamcmd.sh', 'linux32/steamcmd'):
             (self.steam_source / name).chmod(0o644)
         for key, value in [('ROOT', self.root), ('WORKSHOP', self.workshop),
                            ('STEAMCMD_SOURCE', self.steam_source),
-                           ('STEAMCMD', self.steam_staged)]:
+                           ('STEAMCMD', self.steam_staged),
+                           ('STEAM_STATE', self.root / 'steam-state')]:
             p = patch.object(runtime, key, value)
             p.start()
             self.addCleanup(p.stop)
@@ -50,8 +51,10 @@ class RuntimeTest(unittest.TestCase):
     def fake_download(self, settings, commands, expected):
         if '+app_update' in commands:
             (self.root / 'arma3server_x64').touch()
-        else:
-            item = commands[2]
+        for i, command in enumerate(commands):
+            if command != '+workshop_download_item':
+                continue
+            item = commands[i + 2]
             path = self.workshop / item
             (path / 'Addons').mkdir(parents=True, exist_ok=True)
             (path / 'Addons/Test.PBO').write_text('content')
@@ -62,13 +65,13 @@ class RuntimeTest(unittest.TestCase):
         self.settings['bootstrap']['updatePolicy'] = 'if-missing'
         with patch.object(runtime, 'steamcmd', side_effect=self.fake_download) as steam:
             runtime.bootstrap(self.settings)
-            self.assertEqual(steam.call_count, 2)
+            self.assertEqual(steam.call_count, 1)
             self.assertTrue((self.workshop / '3020755032/addons/test.pbo').exists())
             self.assertTrue((self.root / 'keys/test.bikey').exists())
             save = self.root / 'configs/profiles/antistasi.vars.Arma3Profile'
             save.write_text('campaign')
             runtime.bootstrap(self.settings)
-            self.assertEqual(steam.call_count, 2)
+            self.assertEqual(steam.call_count, 1)
             self.assertEqual(save.read_text(), 'campaign')
             self.settings['mods']['workshop'] = []
             runtime.bootstrap(self.settings)
@@ -89,20 +92,30 @@ class RuntimeTest(unittest.TestCase):
                 runtime.bootstrap(self.settings)
         self.assertFalse((self.workshop / '3020755032/.chart-ready').exists())
 
-    def test_zero_exit_download_failure_retries_and_redacts(self):
+    def test_download_failure_retries_but_auth_failure_does_not(self):
         self.settings['bootstrap'].update(retries=2, retryDelaySeconds=0)
-        process = MagicMock()
-        process.__enter__.return_value = process
-        process.returncode = 0
-        process.communicate.return_value = ('ERROR test-user test-steam-password', None)
-        output = io.StringIO()
-        with patch.object(runtime.subprocess, 'Popen', return_value=process) as popen:
-            with contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+        with patch.object(runtime.steam_auth, 'run_session',
+                          side_effect=runtime.steam_auth.DownloadError('failed')) as session:
+            with self.assertRaises(RuntimeError):
                 runtime.steamcmd(self.settings, ['+quit'], 'Success')
-            self.assertEqual(popen.call_count, 2)
-        self.assertNotIn('test-user', output.getvalue())
-        self.assertNotIn('test-steam-password', output.getvalue())
-        self.assertIn('[REDACTED]', output.getvalue())
+            self.assertEqual(session.call_count, 2)
+        with patch.object(runtime.steam_auth, 'run_session',
+                          side_effect=runtime.steam_auth.AuthenticationError('failed')) as session:
+            with self.assertRaises(runtime.steam_auth.AuthenticationError):
+                runtime.steamcmd(self.settings, ['+quit'], 'Success')
+            self.assertEqual(session.call_count, 1)
+
+    def test_cached_login_arguments_and_persistent_home(self):
+        with patch.object(runtime.steam_auth, 'run_session') as session:
+            runtime.steamcmd(self.settings, ['+quit'], 'Success')
+        args, _, password, _, env, _, _ = session.call_args.args
+        self.assertEqual(args[args.index('+login') + 1], 'test-user')
+        self.assertNotIn('test-steam-password', args)
+        self.assertEqual(password, 'test-steam-password')
+        self.assertEqual(env['HOME'], str(self.root / 'steam-state/home'))
+        self.assertNotIn('STEAM_PASSWORD', env)
+        self.assertNotIn('ADMIN_PASSWORD', env)
+        self.assertEqual((self.root / 'steam-state').stat().st_mode & 0o777, 0o700)
 
     def test_non_executable_image_files_are_staged_and_launched(self):
         self.settings['bootstrap']['retries'] = 1
@@ -121,7 +134,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(library.read_text(), 'bundled SDK')
         # Subsequent Workshop operations must retain Steam's self-updates.
         binary = self.steam_staged / 'linux32/steamcmd'
-        binary.write_text('#!/bin/sh\nprintf "%s\\n" "Updated binary"\n')
+        binary.write_text('#!/bin/sh\nprintf "%s\\n" "Waiting for user info...OK" "Updated binary"\n')
         runtime.steamcmd(self.settings, ['+quit'], 'Updated binary')
 
     def test_case_collision_fails(self):

@@ -1,4 +1,5 @@
 """Bootstrap the SteamCMD image, then exec Arma directly for graceful shutdown."""
+import fcntl
 import hashlib
 import json
 import os
@@ -7,15 +8,17 @@ import re
 import shutil
 import signal
 import stat
-import subprocess
 import sys
 import time
+
+import steam_auth
 
 ROOT = Path('/arma3')
 WORKSHOP = ROOT / 'steamapps/workshop/content/107410'
 SETTINGS = Path('/chart/settings.json')
 STEAMCMD_SOURCE = Path('/steamcmd')
-STEAMCMD = Path('/tmp/arma3-steamcmd')
+STEAM_STATE = Path('/var/lib/arma3-steam')
+STEAMCMD = STEAM_STATE / 'steamcmd'
 
 
 def cfg_string(value):
@@ -70,40 +73,49 @@ def prepare_steamcmd():
 
 def steamcmd(settings, commands, expected):
     opts = settings['bootstrap']
-    secrets = [os.environ.get(k, '') for k in
-               ('STEAM_USER', 'STEAM_PASSWORD', 'STEAM_BRANCH_PASSWORD')]
-    if not secrets[0] or not secrets[1]:
+    username = os.environ.get('STEAM_USER', '')
+    password = os.environ.get('STEAM_PASSWORD', '')
+    secrets = [username, password, os.environ.get('STEAM_BRANCH_PASSWORD', '')]
+    if not username or not password:
         raise ValueError('Steam username and password must not be empty')
-    prepare_steamcmd()
-    args = [str(STEAMCMD / 'steamcmd.sh'), '+@ShutdownOnFailedCommand', '1',
-            '+@NoPromptForPassword', '1', '+force_install_dir', str(ROOT),
-            '+login', secrets[0], secrets[1], *commands, '+quit']
-    for attempt in range(opts['retries']):
-        print(f'Steam operation attempt {attempt + 1}/{opts["retries"]}', flush=True)
+    STEAM_STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    STEAM_STATE.chmod(0o700)
+    home = STEAM_STATE / 'home'
+    home.mkdir(exist_ok=True, mode=0o700)
+    home.chmod(0o700)
+    env = os.environ.copy()
+    # Give Steam a real, persistent home without changing the game process's home.
+    env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
+               XDG_DATA_HOME=str(home / '.local/share'), LANG='C', LC_ALL='C')
+    # The game/admin credentials are not needed by SteamCMD's child process.
+    for key in ('STEAM_PASSWORD', 'STEAM_BRANCH_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_PASSWORD'):
+        env.pop(key, None)
+    with (STEAM_STATE / 'session.lock').open('w') as lock:
         try:
-            with subprocess.Popen(args, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True,
-                                  errors='replace', start_new_session=True) as process:
-                try:
-                    output, _ = process.communicate(timeout=opts['timeoutSeconds'])
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.communicate()
-                    raise
-                # SteamCMD can return zero even when a Workshop download fails.
-                success = process.returncode == 0 and expected in output
-        except subprocess.TimeoutExpired:
-            output = 'SteamCMD timed out; retrying.'
-            success = False
-        for secret in sorted(filter(None, secrets), key=len, reverse=True):
-            output = output.replace(secret, '[REDACTED]')
-        print(output, flush=True)
-        if success:
-            return
-        if attempt + 1 < opts['retries']:
-            time.sleep(opts['retryDelaySeconds'])
-    # Do not raise CalledProcessError: its command contains Steam credentials.
-    raise RuntimeError('Steam operation failed; check bootstrap logs, credentials and disk space')
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('Another Steam session is using this authentication volume') from None
+        prepare_steamcmd()
+        # Username-only login reuses saved auth where Steam allows it. Supply the
+        # existing Secret password through the terminal only when Steam asks.
+        args = [str(STEAMCMD / 'steamcmd.sh'), '+@ShutdownOnFailedCommand', '1',
+                '+@NoPromptForPassword', '0', '+force_install_dir', str(ROOT),
+                '+login', username, *commands, '+quit']
+        messages = [expected] if isinstance(expected, str) else expected
+        for attempt in range(opts['retries']):
+            print(f'Steam operation attempt {attempt + 1}/{opts["retries"]}', flush=True)
+            try:
+                steam_auth.run_session(
+                    args, messages, password, secrets, env,
+                    settings['steam']['authTimeoutSeconds'], opts['timeoutSeconds'])
+                return
+            except steam_auth.DownloadError as error:
+                print(str(error), flush=True)
+                if attempt + 1 < opts['retries']:
+                    time.sleep(opts['retryDelaySeconds'])
+        # Authentication errors are not blindly retried; Kubernetes will back off
+        # a failed init container. Codes and credentials never enter exceptions.
+        raise RuntimeError('Steam downloads failed; check bootstrap logs and disk space')
 
 
 def generate_config(server):
@@ -160,31 +172,38 @@ def bootstrap(settings):
     game_identity = json.dumps({'branch': settings['steam']['branch'],
                                 'cdlc': server['cdlc']}, sort_keys=True)
     binary = ROOT / server['binary']
-    if (opts['updatePolicy'] == 'always' or not binary.is_file()
-            or not game_marker.exists() or game_marker.read_text() != game_identity):
+    commands, expected, pending_mods = [], [], []
+    install_game = (opts['updatePolicy'] == 'always' or not binary.is_file()
+                    or not game_marker.exists() or game_marker.read_text() != game_identity)
+    if install_game:
         game_marker.unlink(missing_ok=True)
-        commands = ['+app_update', '233780', '-beta', settings['steam']['branch']]
+        commands += ['+app_update', '233780', '-beta', settings['steam']['branch']]
         if os.environ.get('STEAM_BRANCH_PASSWORD'):
             commands += ['-betapassword', os.environ['STEAM_BRANCH_PASSWORD']]
         if opts['validate']:
             commands += ['validate']
-        steamcmd(settings, commands, "Success! App '233780' fully installed.")
-        if not binary.is_file():
-            raise RuntimeError('Server binary missing after installation: ' + str(binary))
-        atomic_write(game_marker, game_identity)
+        expected.append("Success! App '233780' fully installed.")
     for item in settings['mods']['workshop'] + settings['mods']['serverWorkshop']:
         path = WORKSHOP / item
         marker = path / '.chart-ready'
         if opts['updatePolicy'] == 'always' or not marker.exists() or not mod_valid(path):
             marker.unlink(missing_ok=True)
-            command = ['+workshop_download_item', '107410', item]
+            commands += ['+workshop_download_item', '107410', item]
             if opts['validate']:
-                command += ['validate']
-            steamcmd(settings, command, f'Success. Downloaded item {item}')
-            lower_tree(path)
-            if not mod_valid(path):
-                raise RuntimeError('Workshop item has no PBOs; use individual mod IDs, not collections: ' + item)
-            atomic_write(marker, 'ready\n')
+                commands += ['validate']
+            expected.append(f'Success. Downloaded item {item}')
+            pending_mods.append((item, path, marker))
+    if commands:
+        steamcmd(settings, commands, expected)
+    if install_game:
+        if not binary.is_file():
+            raise RuntimeError('Server binary missing after installation: ' + str(binary))
+        atomic_write(game_marker, game_identity)
+    for item, path, marker in pending_mods:
+        lower_tree(path)
+        if not mod_valid(path):
+            raise RuntimeError('Workshop item has no PBOs; use individual mod IDs, not collections: ' + item)
+        atomic_write(marker, 'ready\n')
     # Remove only previously managed keys; retain Bohemia's installed keys.
     key_manifest = ROOT / '.chart/keys.json'
     old_keys = json.loads(key_manifest.read_text()) if key_manifest.exists() else {}
@@ -245,7 +264,9 @@ def health(settings):
 def main():
     settings = json.loads(SETTINGS.read_text())
     action = sys.argv[1]
-    if action == 'bootstrap':
+    if action == 'auth':
+        steam_auth.attach(cancel='--cancel' in sys.argv[2:])
+    elif action == 'bootstrap':
         bootstrap(settings)
     elif action == 'run':
         os.chdir(ROOT)
@@ -275,4 +296,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except steam_auth.AuthenticationError as error:
+        print(str(error), file=sys.stderr, flush=True)
+        sys.exit(1)

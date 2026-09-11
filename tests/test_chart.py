@@ -1,4 +1,3 @@
-import copy
 import json
 from pathlib import Path
 import subprocess
@@ -31,17 +30,19 @@ def kind(objects, name):
 class ChartTest(unittest.TestCase):
     def test_defaults_and_credential_isolation(self):
         objects = render()
-        self.assertEqual(len(kind(objects, 'PersistentVolumeClaim')), 2)
+        self.assertEqual(len(kind(objects, 'PersistentVolumeClaim')), 3)
         deployment = kind(objects, 'Deployment')[0]
         self.assertEqual(deployment['spec']['strategy']['type'], 'Recreate')
         self.assertEqual(deployment['spec']['replicas'], 1)
         pod = deployment['spec']['template']['spec']
         self.assertFalse(pod['automountServiceAccountToken'])
         init = pod['initContainers'][0]
-        self.assertEqual(init['env'][0]['valueFrom']['secretKeyRef'],
+        self.assertEqual(next(x for x in init['env'] if x['name'] == 'STEAM_USER')['valueFrom']['secretKeyRef'],
                          {'name': 'arma3-steam', 'key': 'username'})
         self.assertNotIn('env', pod['containers'][0])
         mounts = {x['name']: x['mountPath'] for x in init['volumeMounts']}
+        self.assertEqual(mounts['steam'], '/var/lib/arma3-steam')
+        self.assertNotIn('steam', [m['name'] for m in pod['containers'][0]['volumeMounts']])
         self.assertEqual(mounts['data'], '/arma3')
         self.assertEqual(mounts['workshop'], '/arma3/steamapps/workshop')
         ports = kind(objects, 'Service')[0]['spec']['ports']
@@ -72,11 +73,12 @@ class ChartTest(unittest.TestCase):
 
     def test_existing_and_ephemeral_storage(self):
         objects = render({'persistence': {'data': {'existingClaim': 'my-data'},
-                                          'workshop': {'enabled': False}}})
+                                          'workshop': {'enabled': False}, 'steam': {'existingClaim': 'my-steam'}}})
         self.assertFalse(kind(objects, 'PersistentVolumeClaim'))
         volumes = kind(objects, 'Deployment')[0]['spec']['template']['spec']['volumes']
         self.assertEqual(volumes[0]['persistentVolumeClaim']['claimName'], 'my-data')
-        self.assertEqual(volumes[1]['emptyDir'], {})
+        self.assertEqual(next(v for v in volumes if v['name'] == 'workshop')['emptyDir'], {})
+        self.assertEqual(next(v for v in volumes if v['name'] == 'steam')['persistentVolumeClaim']['claimName'], 'my-steam')
 
     def test_storage_class_and_retention(self):
         objects = render({'persistence': {'data': {'storageClass': '-', 'retain': False}}})
@@ -88,7 +90,7 @@ class ChartTest(unittest.TestCase):
         objects = render({'server': {'existingConfigSecret': 'my-config',
                                      'configKey': 'custom.cfg', 'admin': {'existingSecret': ''}}})
         pod = kind(objects, 'Deployment')[0]['spec']['template']['spec']
-        self.assertEqual(len(pod['initContainers'][0]['env']), 2)
+        self.assertEqual(len(pod['initContainers'][0]['env']), 4)
         volume = next(x for x in pod['volumes'] if x['name'] == 'server-config')
         self.assertEqual(volume['secret']['items'], [{'key': 'custom.cfg', 'path': 'server.cfg'}])
 
@@ -106,6 +108,7 @@ class ChartTest(unittest.TestCase):
             {'server': {'port': 2302}},
             {'gateway': {'enabled': True}},
             {'bootstrap': {'retries': 0}},
+            {'steam': {'authTimeoutSeconds': 0}},
             {'server': {'admin': {'existingSecret': ''}}},
             {'server': {'mission': {'parameters': {'bad;name': 1}}}},
         ]:
