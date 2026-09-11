@@ -115,6 +115,25 @@ class RuntimeTest(unittest.TestCase):
                 runtime.bootstrap(self.settings)
         self.assertTrue((self.root / '.chart/game.json').exists())
 
+    def test_retry_drops_completed_game_update(self):
+        self.settings['bootstrap'].update(retries=2, retryDelaySeconds=0)
+        app = "Success! App '233780' fully installed."
+        workshop = 'Success. Downloaded item 3020755032'
+        calls = []
+
+        def fail_then_succeed(args, messages, *unused):
+            calls.append((args, messages))
+            if len(calls) == 1:
+                raise runtime.steam_auth.DownloadError('workshop failed', {app})
+
+        with patch.object(runtime.steam_auth, 'run_session', side_effect=fail_then_succeed):
+            runtime.steamcmd(self.settings, ['+app_update', '233780', '-beta', 'public',
+                                             'validate', '+workshop_download_item', '107410',
+                                             '3020755032', 'validate'], [app, workshop])
+        self.assertIn('+app_update', calls[0][0])
+        self.assertNotIn('+app_update', calls[1][0])
+        self.assertEqual(calls[1][1], [workshop])
+
     def test_cached_login_arguments_and_persistent_home(self):
         with patch.object(runtime.steam_auth, 'run_session') as session:
             runtime.steamcmd(self.settings, ['+quit'], 'Success')

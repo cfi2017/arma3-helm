@@ -98,16 +98,37 @@ def steamcmd(settings, commands, expected):
         prepare_steamcmd()
         # Username-only login reuses saved auth where Steam allows it. Supply the
         # existing Secret password through the terminal only when Steam asks.
-        args = [str(STEAMCMD / 'steamcmd.sh'), '+@ShutdownOnFailedCommand', '1',
-                '+@NoPromptForPassword', '0', '+force_install_dir', str(ROOT),
-                '+login', username, *commands, '+quit']
+        base_args = [str(STEAMCMD / 'steamcmd.sh'), '+@ShutdownOnFailedCommand', '1',
+                     '+@NoPromptForPassword', '0', '+force_install_dir', str(ROOT),
+                     '+login', username, *commands, '+quit']
         messages = [expected] if isinstance(expected, str) else expected
         matched = set()
+        app_success = "Success! App '233780' fully installed."
         for attempt in range(opts['retries']):
             print(f'Steam operation attempt {attempt + 1}/{opts["retries"]}', flush=True)
             try:
+                args = base_args
+                attempt_messages = messages
+                if app_success in matched:
+                    # Do not re-verify the full server depot after a later
+                    # Workshop item failed in the same Steam session.
+                    args = []
+                    index = 0
+                    while index < len(base_args):
+                        if base_args[index] == '+app_update':
+                            index += 2
+                            if index < len(base_args) and base_args[index] == '-beta':
+                                index += 2
+                            if index < len(base_args) and base_args[index] == '-betapassword':
+                                index += 2
+                            if index < len(base_args) and base_args[index] == 'validate':
+                                index += 1
+                            continue
+                        args.append(base_args[index])
+                        index += 1
+                    attempt_messages = [message for message in messages if message != app_success]
                 steam_auth.run_session(
-                    args, messages, password, secrets, env,
+                    args, attempt_messages, password, secrets, env,
                     settings['steam']['authTimeoutSeconds'], opts['timeoutSeconds'])
                 return
             except steam_auth.DownloadError as error:
