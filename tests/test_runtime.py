@@ -24,7 +24,19 @@ class RuntimeTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.workshop = self.root / 'steamapps/workshop/content/107410'
-        for key, value in [('ROOT', self.root), ('WORKSHOP', self.workshop)]:
+        self.steam_source = self.root / 'image-steamcmd'
+        self.steam_staged = self.root / 'staged-steamcmd'
+        (self.steam_source / 'linux32').mkdir(parents=True)
+        # Exercise an actual launcher/native-process chain, not mocked Popen.
+        (self.steam_source / 'steamcmd.sh').write_text(
+            '#!/bin/sh\nexec "${0%/*}/linux32/steamcmd" "$@"\n')
+        (self.steam_source / 'linux32/steamcmd').write_text(
+            '#!/bin/sh\nprintf "%s\\n" "Success. Downloaded item 1234"\n')
+        for name in ('steamcmd.sh', 'linux32/steamcmd'):
+            (self.steam_source / name).chmod(0o644)
+        for key, value in [('ROOT', self.root), ('WORKSHOP', self.workshop),
+                           ('STEAMCMD_SOURCE', self.steam_source),
+                           ('STEAMCMD', self.steam_staged)]:
             p = patch.object(runtime, key, value)
             p.start()
             self.addCleanup(p.stop)
@@ -91,6 +103,26 @@ class RuntimeTest(unittest.TestCase):
         self.assertNotIn('test-user', output.getvalue())
         self.assertNotIn('test-steam-password', output.getvalue())
         self.assertIn('[REDACTED]', output.getvalue())
+
+    def test_non_executable_image_files_are_staged_and_launched(self):
+        self.settings['bootstrap']['retries'] = 1
+        library = self.steam_source / 'linux32/steamclient.so'
+        library.write_text('bundled SDK')
+        library.chmod(0o444)
+        runtime.steamcmd(self.settings, ['+workshop_download_item', '107410', '1234'],
+                         'Success. Downloaded item 1234')
+        for name in ('steamcmd.sh', 'linux32/steamcmd'):
+            source = self.steam_source / name
+            staged = self.steam_staged / name
+            self.assertEqual(source.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(staged.stat().st_uid, os.getuid())
+            self.assertTrue(os.access(staged, os.X_OK))
+        (self.steam_staged / 'linux32/steamclient.so').write_text('updated SDK')
+        self.assertEqual(library.read_text(), 'bundled SDK')
+        # Subsequent Workshop operations must retain Steam's self-updates.
+        binary = self.steam_staged / 'linux32/steamcmd'
+        binary.write_text('#!/bin/sh\nprintf "%s\\n" "Updated binary"\n')
+        runtime.steamcmd(self.settings, ['+quit'], 'Updated binary')
 
     def test_case_collision_fails(self):
         (self.root / 'Test.PBO').touch()

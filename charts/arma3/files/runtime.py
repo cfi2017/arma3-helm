@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -13,6 +14,8 @@ import time
 ROOT = Path('/arma3')
 WORKSHOP = ROOT / 'steamapps/workshop/content/107410'
 SETTINGS = Path('/chart/settings.json')
+STEAMCMD_SOURCE = Path('/steamcmd')
+STEAMCMD = Path('/tmp/arma3-steamcmd')
 
 
 def cfg_string(value):
@@ -48,13 +51,31 @@ def mod_valid(path):
     return path.is_dir() and any(path.rglob('*.pbo'))
 
 
+def prepare_steamcmd():
+    # The pinned image ships the launcher and native binary as UID 5020,
+    # mode 0764. Even root cannot execute those with capabilities dropped.
+    # A private copy is owned by our UID and also permits Steam self-updates.
+    marker = STEAMCMD / '.chart-ready'
+    if marker.exists():
+        return
+    shutil.copytree(STEAMCMD_SOURCE, STEAMCMD, dirs_exist_ok=True)
+    # Read-only bundled libraries must also be replaceable by self-updates.
+    for path in STEAMCMD.rglob('*'):
+        path.chmod(path.stat().st_mode | stat.S_IWUSR)
+    for name in ('steamcmd.sh', 'linux32/steamcmd'):
+        executable = STEAMCMD / name
+        executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
+    atomic_write(marker, 'ready\n')
+
+
 def steamcmd(settings, commands, expected):
     opts = settings['bootstrap']
     secrets = [os.environ.get(k, '') for k in
                ('STEAM_USER', 'STEAM_PASSWORD', 'STEAM_BRANCH_PASSWORD')]
     if not secrets[0] or not secrets[1]:
         raise ValueError('Steam username and password must not be empty')
-    args = ['/steamcmd/steamcmd.sh', '+@ShutdownOnFailedCommand', '1',
+    prepare_steamcmd()
+    args = [str(STEAMCMD / 'steamcmd.sh'), '+@ShutdownOnFailedCommand', '1',
             '+@NoPromptForPassword', '1', '+force_install_dir', str(ROOT),
             '+login', secrets[0], secrets[1], *commands, '+quit']
     for attempt in range(opts['retries']):
@@ -186,7 +207,7 @@ def bootstrap(settings):
     # SteamCMD self-updates only in the init container. Keep its Steam SDK
     # libraries for the separate game container's Steam authentication.
     for bits in ('32', '64'):
-        library = Path('/steamcmd') / ('linux' + bits) / 'steamclient.so'
+        library = STEAMCMD / ('linux' + bits) / 'steamclient.so'
         if library.is_file():
             sdk = ROOT / '.chart' / ('sdk' + bits)
             sdk.mkdir(exist_ok=True)

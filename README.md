@@ -21,7 +21,7 @@ kubectl -n arma3 create secret generic arma3-admin \
 # Available after the publishing workflow succeeds and the package is public:
 helm upgrade --install antistasi \
   oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  --version 0.1.0 --namespace arma3 --wait --timeout 120m
+  --version 0.1.1 --namespace arma3 --wait --timeout 120m
 
 # Or install directly from this checkout:
 helm upgrade --install antistasi ./charts/arma3 \
@@ -117,7 +117,7 @@ For manual content, upload mission PBOs to `/arma3/mpmissions`, and lowercase mo
 - `server.binary`, `profile`, `world`, `limitFPS`, `cdlc`, `extraArgs`: launch options. Arguments are passed directly to the server, without shell evaluation. `extraEnv` applies to the game container. The chart owns startup; upstream `ARMA_*`, `MODS_PRESET`, and `HEADLESS_CLIENTS` environment variables do not configure it. Use separate headless-client deployments if needed.
 - `resources`, `bootstrapResources`, scheduling, security contexts, probes, annotations, image credentials, extra volumes/mounts, and shutdown grace period are configurable.
 
-The chart deliberately runs its own bootstrap and directly execs the game binary using the upstream image's SteamCMD/runtime. This catches upstream's unchecked Steam failures and preserves normal Kubernetes signal handling. The pinned published image uses `/arma3`; **upstream's v2 branch uses `/arma3/server` and a different downloader and is not compatible**. Change the image digest only after checking its SteamCMD layout.
+The chart deliberately runs its own bootstrap and directly execs the game binary using the upstream image's SteamCMD/runtime. This catches upstream's unchecked Steam failures and preserves normal Kubernetes signal handling. SteamCMD is staged in `/tmp/arma3-steamcmd`, owned by the bootstrap user, so its launcher/native binary can execute and self-update with all capabilities dropped. Its downloaded Steam SDK libraries are copied to the data PVC for the game container. The pinned published image uses `/arma3`; **upstream's v2 branch uses `/arma3/server` and a different downloader and is not compatible**. Change the image digest only after checking its SteamCMD layout.
 
 Config/mod value changes trigger pod replacement via a ConfigMap checksum. External Secret changes require an explicit `kubectl -n arma3 rollout restart deployment/antistasi-arma3`. Startup/readiness probes check the UDP game socket, not mission correctness; there is no default liveness restart. The pre-stop hook sends SIGINT to Arma, with 120 seconds to exit. This does not replace an in-game campaign save.
 
