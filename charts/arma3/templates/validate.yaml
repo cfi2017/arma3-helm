@@ -4,6 +4,9 @@
 {{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) }}
 {{- fail "gateway.enabled requires gateway.parentRefs for an existing UDP Gateway" }}
 {{- end }}
+{{- if and .Values.gateway.enabled .Values.gateway.listenerSet.enabled (ne (len .Values.gateway.parentRefs) 1) }}
+{{- fail "gateway.listenerSet.enabled requires exactly one gateway.parentRefs entry because ListenerSet.spec.parentRef is singular" }}
+{{- end }}
 {{- if and (not .Values.server.existingConfigSecret) (not .Values.server.admin.existingSecret) }}
 {{- fail "server.admin.existingSecret is required unless server.existingConfigSecret is set" }}
 {{- end }}

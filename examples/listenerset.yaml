@@ -1,0 +1,17 @@
+server:
+  port: 2302
+service:
+  type: ClusterIP
+gateway:
+  enabled: true
+  parentRefs:
+    - name: games
+      namespace: gateway-system
+  listenerSet:
+    enabled: true
+  sectionNames:
+    game: arma-game
+    query: arma-query
+    steam: arma-steam
+    von: arma-von
+    battleye: arma-battleye

@@ -32,3 +32,6 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+{{- define "arma3.listenerSetName" -}}
+{{- default (printf "%s-listeners" (include "arma3.fullname" .)) .Values.gateway.listenerSet.name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}

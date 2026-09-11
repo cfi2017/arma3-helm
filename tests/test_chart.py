@@ -71,6 +71,24 @@ class ChartTest(unittest.TestCase):
             self.assertEqual(route['spec']['parentRefs'][0]['port'], 32302 + i)
         self.assertEqual(kind(objects, 'Service')[0]['spec']['type'], 'NodePort')
 
+    def test_listener_set_routes_and_parent(self):
+        values = yaml.safe_load(Path('examples/listenerset.yaml').read_text())
+        objects = render(values)
+        sets = kind(objects, 'ListenerSet')
+        self.assertEqual(len(sets), 1)
+        listener_set = sets[0]
+        self.assertEqual(listener_set['apiVersion'], 'gateway.networking.k8s.io/v1')
+        self.assertEqual(listener_set['spec']['parentRef'], {
+            'name': 'games', 'namespace': 'gateway-system',
+            'group': 'gateway.networking.k8s.io', 'kind': 'Gateway'})
+        self.assertEqual([x['port'] for x in listener_set['spec']['listeners']],
+                         list(range(2302, 2307)))
+        routes = kind(objects, 'UDPRoute')
+        self.assertEqual({r['spec']['parentRefs'][0]['kind'] for r in routes}, {'ListenerSet'})
+        self.assertEqual({r['spec']['parentRefs'][0]['name'] for r in routes}, {'test-arma3-listeners'})
+        self.assertEqual({r['spec']['parentRefs'][0]['sectionName'] for r in routes},
+                         {'arma-game', 'arma-query', 'arma-steam', 'arma-von', 'arma-battleye'})
+
     def test_existing_and_ephemeral_storage(self):
         objects = render({'persistence': {'data': {'existingClaim': 'my-data'},
                                           'workshop': {'enabled': False}, 'steam': {'existingClaim': 'my-steam'}}})

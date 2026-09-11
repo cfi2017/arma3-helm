@@ -7,6 +7,14 @@ metadata:
   namespace: gateway-system
 spec:
   gatewayClassName: YOUR-UDP-GATEWAY-CLASS
+  # Gateway API v1.6 ListenerSets are denied by default. Permit ListenerSets
+  # from the namespace where the Helm release is installed.
+  allowedListeners:
+    namespaces:
+      from: Selector
+      selector:
+        matchLabels:
+          kubernetes.io/metadata.name: arma3
   listeners:
     - name: arma-game
       protocol: UDP

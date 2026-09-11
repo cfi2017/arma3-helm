@@ -13,6 +13,12 @@ metadata:
   {{- end }}
 spec:
   parentRefs:
+    {{- if $.Values.gateway.listenerSet.enabled }}
+    - name: {{ include "arma3.listenerSetName" $ }}
+      group: gateway.networking.k8s.io
+      kind: ListenerSet
+      sectionName: {{ default $name (index $.Values.gateway.sectionNames $name) }}
+    {{- else }}
     {{- range $parent := $.Values.gateway.parentRefs }}
     - name: {{ $parent.name }}
       {{- with $parent.namespace }}
@@ -25,6 +31,7 @@ spec:
       {{- else }}
       port: {{ add (int $.Values.server.port) $i }}
       {{- end }}
+    {{- end }}
     {{- end }}
   rules:
     - backendRefs:

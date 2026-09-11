@@ -1,0 +1,34 @@
+{{- if and .Values.gateway.enabled .Values.gateway.listenerSet.enabled }}
+{{- $parents := .Values.gateway.parentRefs }}
+---
+apiVersion: {{ .Values.gateway.listenerSet.apiVersion }}
+kind: ListenerSet
+metadata:
+  name: {{ include "arma3.listenerSetName" . }}
+  labels:
+    {{- include "arma3.labels" . | nindent 4 }}
+  {{- with .Values.gateway.listenerSet.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRef:
+    name: {{ (index $parents 0).name }}
+    {{- with (index $parents 0).namespace }}
+    namespace: {{ . }}
+    {{- end }}
+    group: gateway.networking.k8s.io
+    kind: Gateway
+  listeners:
+    {{- range $i, $name := list "game" "query" "steam" "von" "battleye" }}
+    - name: {{ default $name (index $.Values.gateway.sectionNames $name) }}
+      protocol: UDP
+      port: {{ add (int $.Values.server.port) $i }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: UDPRoute
+    {{- end }}
+{{- end }}

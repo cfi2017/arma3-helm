@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"type": "string", "const": "gateway.networking.k8s.io/v1"},
+    "kind": {"type": "string", "const": "ListenerSet"},
+    "metadata": {"type": "object"},
+    "spec": {
+      "type": "object",
+      "required": ["parentRef", "listeners"],
+      "properties": {
+        "parentRef": {"type": "object", "required": ["name"]},
+        "listeners": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "protocol", "port"],
+            "properties": {
+              "name": {"type": "string"},
+              "protocol": {"const": "UDP"},
+              "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+              "allowedRoutes": {"type": "object"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
