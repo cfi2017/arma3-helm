@@ -191,3 +191,11 @@ class RuntimeTest(unittest.TestCase):
         server['hostname'] = 'bad\nvalue'
         with self.assertRaises(ValueError):
             runtime.generate_config(server)
+
+    def test_nested_workshop_mod_root_is_used(self):
+        nested = self.workshop / '3020755032' / '@A3A' / 'addons'
+        nested.mkdir(parents=True)
+        (nested / 'a3a.pbo').touch()
+        args = runtime.server_args(self.settings)
+        self.assertIn('-mod=' + str(nested.parent), args)
+        self.assertNotIn('-mod=' + str(self.workshop / '3020755032'), args)

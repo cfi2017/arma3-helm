@@ -179,11 +179,21 @@ def generate_config(server):
     return '\n'.join(lines) + '\n'
 
 
+def workshop_mod_paths(path):
+    """Return Arma mod roots, handling Workshop items with nested @Mod dirs."""
+    if (path / 'addons').is_dir():
+        return [path]
+    roots = sorted(child for child in path.iterdir()
+                   if child.is_dir() and (child / 'addons').is_dir()) if path.is_dir() else []
+    return roots or [path]
+
+
 def mod_paths(settings, server_only=False):
     mods = settings['mods']
     ids = mods['serverWorkshop' if server_only else 'workshop']
     local = mods['serverLocal' if server_only else 'local']
-    return [WORKSHOP / item for item in ids] + [ROOT / item for item in local]
+    workshop = [root for item in ids for root in workshop_mod_paths(WORKSHOP / item)]
+    return workshop + [ROOT / item for item in local]
 
 
 def bootstrap(settings):
