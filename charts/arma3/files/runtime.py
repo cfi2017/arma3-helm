@@ -189,6 +189,22 @@ def workshop_mod_paths(path):
     return roots or [path]
 
 
+def stage_workshop_missions(settings):
+    """Expose mission folders bundled inside Workshop mods to Arma's mpmissions."""
+    staged = []
+    for root in mod_paths(settings):
+        for mission_file in root.rglob('mission.sqm'):
+            mission = mission_file.parent
+            name = mission.name
+            if '.' not in name or not mission.is_dir():
+                continue
+            destination = ROOT / 'mpmissions' / name
+            shutil.copytree(mission, destination, dirs_exist_ok=True)
+            staged.append(name)
+    if staged:
+        print('Staged Workshop missions: ' + ', '.join(sorted(set(staged))), flush=True)
+
+
 def mod_paths(settings, server_only=False):
     mods = settings['mods']
     ids = mods['serverWorkshop' if server_only else 'workshop']
@@ -247,6 +263,7 @@ def bootstrap(settings):
         if not mod_valid(path):
             raise RuntimeError('Workshop item has no PBOs; use individual mod IDs, not collections: ' + item)
         atomic_write(marker, 'ready\n')
+    stage_workshop_missions(settings)
     # Remove only previously managed keys; retain Bohemia's installed keys.
     key_manifest = ROOT / '.chart/keys.json'
     old_keys = json.loads(key_manifest.read_text()) if key_manifest.exists() else {}

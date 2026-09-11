@@ -202,3 +202,10 @@ class RuntimeTest(unittest.TestCase):
         mod_arg = next(x for x in args if x.startswith('-mod='))
         self.assertIn(str(nested.parent), mod_arg)
         self.assertNotIn(str(self.workshop / '3020755032') + ';', mod_arg)
+
+    def test_workshop_mission_is_staged(self):
+        mission = self.workshop / '3020755032' / 'addons' / 'maps' / 'Antistasi_Altis.Altis'
+        mission.mkdir(parents=True)
+        (mission / 'mission.sqm').write_text('class Mission {};')
+        runtime.stage_workshop_missions(self.settings)
+        self.assertTrue((self.root / 'mpmissions/Antistasi_Altis.Altis/mission.sqm').exists())
