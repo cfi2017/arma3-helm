@@ -102,6 +102,7 @@ def steamcmd(settings, commands, expected):
                 '+@NoPromptForPassword', '0', '+force_install_dir', str(ROOT),
                 '+login', username, *commands, '+quit']
         messages = [expected] if isinstance(expected, str) else expected
+        matched = set()
         for attempt in range(opts['retries']):
             print(f'Steam operation attempt {attempt + 1}/{opts["retries"]}', flush=True)
             try:
@@ -110,12 +111,15 @@ def steamcmd(settings, commands, expected):
                     settings['steam']['authTimeoutSeconds'], opts['timeoutSeconds'])
                 return
             except steam_auth.DownloadError as error:
+                matched.update(error.matched)
                 print(str(error), flush=True)
                 if attempt + 1 < opts['retries']:
                     time.sleep(opts['retryDelaySeconds'])
         # Authentication errors are not blindly retried; Kubernetes will back off
         # a failed init container. Codes and credentials never enter exceptions.
-        raise RuntimeError('Steam downloads failed; check bootstrap logs and disk space')
+        raise steam_auth.DownloadError(
+            'Steam downloads failed; check bootstrap logs, Workshop access and disk space',
+            matched)
 
 
 def generate_config(server):
@@ -194,7 +198,14 @@ def bootstrap(settings):
             expected.append(f'Success. Downloaded item {item}')
             pending_mods.append((item, path, marker))
     if commands:
-        steamcmd(settings, commands, expected)
+        try:
+            steamcmd(settings, commands, expected)
+        except steam_auth.DownloadError as error:
+            # Do not make retries re-verify the entire server when a later
+            # Workshop item was rejected. The app success is separately durable.
+            if install_game and "Success! App '233780' fully installed." in error.matched and binary.is_file():
+                atomic_write(game_marker, game_identity)
+            raise
     if install_game:
         if not binary.is_file():
             raise RuntimeError('Server binary missing after installation: ' + str(binary))

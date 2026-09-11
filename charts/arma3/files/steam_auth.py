@@ -32,7 +32,9 @@ class AuthenticationError(RuntimeError):
 
 
 class DownloadError(RuntimeError):
-    pass
+    def __init__(self, message, matched=()):
+        super().__init__(message)
+        self.matched = frozenset(matched)
 
 
 def redact(text, secrets):
@@ -271,7 +273,9 @@ def run_session(args, expected, password, secrets, env, auth_timeout,
                 matched.add(message)
         log_line(output_line)
         if process.wait() != 0 or len(matched) != len(set(expected)):
-            raise DownloadError('Steam did not confirm all downloads; check the download logs and account access')
+            raise DownloadError(
+                'Steam did not confirm all downloads; check the download logs and account access',
+                matched)
         send({'state': 'done', 'message': 'Steam downloads completed.'})
     except (AuthenticationError, DownloadError) as error:
         send({'state': 'error', 'message': str(error)})

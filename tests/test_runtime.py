@@ -105,6 +105,16 @@ class RuntimeTest(unittest.TestCase):
                 runtime.steamcmd(self.settings, ['+quit'], 'Success')
             self.assertEqual(session.call_count, 1)
 
+    def test_successful_game_is_marked_when_workshop_fails(self):
+        self.settings['bootstrap']['retries'] = 1
+        (self.root / 'arma3server_x64').touch()
+        with patch.object(runtime.steam_auth, 'run_session',
+                          side_effect=runtime.steam_auth.DownloadError(
+                              'workshop failed', {"Success! App '233780' fully installed."})):
+            with self.assertRaises(runtime.steam_auth.DownloadError):
+                runtime.bootstrap(self.settings)
+        self.assertTrue((self.root / '.chart/game.json').exists())
+
     def test_cached_login_arguments_and_persistent_home(self):
         with patch.object(runtime.steam_auth, 'run_session') as session:
             runtime.steamcmd(self.settings, ['+quit'], 'Success')

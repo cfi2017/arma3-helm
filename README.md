@@ -21,14 +21,14 @@ kubectl -n arma3 create secret generic arma3-admin \
 # Available after the publishing workflow succeeds and the package is public:
 helm upgrade --install antistasi \
   oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  --version 0.2.0 --namespace arma3 --wait --timeout 120m
+  --version 0.2.1 --namespace arma3 --wait --timeout 120m
 
 # Or install directly from this checkout:
 helm upgrade --install antistasi ./charts/arma3 \
   --namespace arma3 --wait --timeout 120m
 ```
 
-Steam credentials are passed only to the bootstrap init container through `secretKeyRef`. Use an account that can download the server and selected Workshop items (Workshop access may require owning Arma 3). Keep Steam Guard enabled: bootstrap accepts codes through an interactive Kubernetes terminal as described below. Anonymous login was tested and could not download the Arma 3 server (`No subscription`) or the selected Workshop item. Keep credentials out of committed files and shell history; the commands above contain placeholders only.
+Steam credentials are passed only to the bootstrap init container through `secretKeyRef`. Use an account that owns Arma 3 and can access the selected Workshop items. The dedicated-server depot can be downloadable without the full game subscription, while Workshop downloads generally require the account to own Arma 3; a successful server install does not prove Workshop access. Keep Steam Guard enabled: bootstrap accepts codes through an interactive Kubernetes terminal as described below. Anonymous login was tested and could not download the Arma 3 server (`No subscription`) or the selected Workshop item. Keep credentials out of committed files and shell history; the commands above contain placeholders only.
 
 The default NodePort setup reserves **UDP 32302–32306**. Forward/open that entire range on your firewall/router and connect to **the node running the pod**, port **32302**. With the default `externalTrafficPolicy: Local`, other nodes do not forward traffic unless they have the server pod. Find it with:
 
@@ -56,7 +56,7 @@ kubectl exec -it -n arma3 POD_NAME -c bootstrap -- \
 
 Enter your current email/Steam Mobile authenticator code when prompted. Input is hidden. If SteamCMD requests app approval, approve the login in Steam Mobile and wait; the helper exits when authentication succeeds. QR support is not assumed. The helper connects to the **existing** SteamCMD process over a local Unix socket. It does not launch another downloader or expose an HTTP service. Access requires Kubernetes `pods/exec` permission; the socket accepts one client at a time and has mode 0600 inside a mode-0700 directory.
 
-Ctrl-C or Ctrl-D detaches **without cancelling** the pending login; you can reconnect. If Steam repeats a code prompt, enter a fresh code. If Steam terminates login instead, or authentication times out, the init container fails and Kubernetes retries with its normal backoff. Download retries use `bootstrap.retries`; authentication failures are not immediately retried by the broker. To explicitly terminate the current attempt:
+Ctrl-C or Ctrl-D detaches **without cancelling** the pending login; you can reconnect. If Steam repeats a code prompt, enter a fresh code. If Steam terminates login instead, or authentication times out, the init container fails and Kubernetes retries with its normal backoff. Download retries use `bootstrap.retries`; authentication failures are not immediately retried by the broker. If the server depot succeeds but a Workshop item fails, the successful server install is marked before retrying, so later attempts do not re-verify the full 5.3 GiB depot. A Workshop `Failure` immediately after `Downloading item ...` usually means the Steam account cannot access that item: verify Arma 3 ownership, open the item in the Steam client, subscribe to it, and test that the account can download it. To explicitly terminate the current attempt:
 
 ```sh
 kubectl exec -n arma3 POD_NAME -c bootstrap -- \
@@ -69,11 +69,11 @@ Authentication state lives on the **Steam PVC**, mounted only in bootstrap at `/
 
 Saved authentication is reused where Steam supports it; approvals can expire or be revoked. A fresh PVC, changed account, changed password, or Steam policy may require approval again. To reset cached authentication, stop the deployment, mount **only the Steam PVC** in a maintenance pod, remove its `steamcmd/config` and `home` authentication state (or provision a fresh Steam PVC), and restart. A fresh Steam PVC is the most complete reset. Never remove the data or Workshop PVCs for an authentication reset. Do not run competing SteamCMD processes on the same Steam state.
 
-**Upgrading from 0.1.x:** version 0.2.0 adds a third, 1 GiB Steam PVC; it preserves the existing data and Workshop claims. On Helm 3.14+, merge new defaults with your existing overrides:
+**Upgrading from 0.1.x:** version 0.2.1 includes the Steam Guard flow and preserves the existing data, Workshop, and Steam claims. On Helm 3.14+, merge new defaults with your existing overrides:
 
 ```sh
 helm upgrade antistasi oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  -n arma3 --version 0.2.0 --reset-then-reuse-values --wait --timeout 150m
+  -n arma3 --version 0.2.1 --reset-then-reuse-values --wait --timeout 150m
 ```
 
 For older Helm, use `--reset-values -f your-values.yaml` instead. Plain `--reuse-values` can omit the new defaults. Use your actual namespace (for example `app-arma3-antistasi`) in both the upgrade and attach commands. Avoid `--atomic` during first authentication: an unattended Helm timeout could roll back the waiting pod. GitOps installations should set a Helm timeout long enough for approval plus the first downloads.
