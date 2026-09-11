@@ -1,0 +1,639 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^(sha256:[a-f0-9]{64})?$"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      },
+      "required": [
+        "repository",
+        "tag",
+        "digest",
+        "pullPolicy"
+      ]
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {}
+    },
+    "steam": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "usernameKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "passwordKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "type": "string"
+        },
+        "branchPasswordKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "existingSecret",
+        "usernameKey",
+        "passwordKey",
+        "branch",
+        "branchPasswordKey"
+      ]
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "updatePolicy": {
+          "type": "string",
+          "enum": [
+            "always",
+            "if-missing"
+          ]
+        },
+        "validate": {
+          "type": "boolean"
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retryDelaySeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "updatePolicy",
+        "validate",
+        "retries",
+        "retryDelaySeconds",
+        "timeoutSeconds"
+      ]
+    },
+    "mods": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workshop": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "uniqueItems": true
+        },
+        "serverWorkshop": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "uniqueItems": true
+        },
+        "local": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(mods|servermods)/[a-z0-9_./-]+$",
+            "not": {
+              "pattern": "(^|/)\\.\\.(/|$)"
+            }
+          },
+          "uniqueItems": true
+        },
+        "serverLocal": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(mods|servermods)/[a-z0-9_./-]+$",
+            "not": {
+              "pattern": "(^|/)\\.\\.(/|$)"
+            }
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "workshop",
+        "serverWorkshop",
+        "local",
+        "serverLocal"
+      ]
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hostname": {
+          "type": "string"
+        },
+        "maxPlayers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65531
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "binary": {
+          "type": "string",
+          "pattern": "^\\./[a-zA-Z0-9_-]+$"
+        },
+        "world": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "limitFPS": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cdlc": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "csla",
+              "gm",
+              "vn",
+              "ws",
+              "spe",
+              "rf",
+              "ef"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "persistent": {
+          "type": "boolean"
+        },
+        "battleye": {
+          "type": "boolean"
+        },
+        "verifySignatures": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ]
+        },
+        "allowedFilePatching": {
+          "type": "integer",
+          "enum": [
+            0,
+            1,
+            2
+          ]
+        },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "existingSecret": {
+              "type": "string"
+            },
+            "passwordKey": {
+              "type": "string"
+            },
+            "uids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "existingSecret",
+            "passwordKey",
+            "uids"
+          ]
+        },
+        "password": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "existingSecret": {
+              "type": "string"
+            },
+            "passwordKey": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "existingSecret",
+            "passwordKey"
+          ]
+        },
+        "mission": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "template": {
+              "type": "string"
+            },
+            "difficulty": {
+              "type": "string",
+              "enum": [
+                "Recruit",
+                "Regular",
+                "Veteran",
+                "Custom"
+              ]
+            },
+            "parameters": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+              },
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "template",
+            "difficulty",
+            "parameters"
+          ]
+        },
+        "extraConfig": {
+          "type": "string"
+        },
+        "existingConfigSecret": {
+          "type": "string"
+        },
+        "configKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "hostname",
+        "maxPlayers",
+        "port",
+        "profile",
+        "binary",
+        "world",
+        "limitFPS",
+        "extraArgs",
+        "cdlc",
+        "persistent",
+        "battleye",
+        "verifySignatures",
+        "allowedFilePatching",
+        "admin",
+        "password",
+        "mission",
+        "extraConfig",
+        "existingConfigSecret",
+        "configKey"
+      ]
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "NodePort",
+            "ClusterIP",
+            "LoadBalancer"
+          ]
+        },
+        "nodePortBase": {
+          "type": "integer",
+          "minimum": 30000,
+          "maximum": 32763
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "enum": [
+            "Local",
+            "Cluster"
+          ]
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "loadBalancerIP": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "nodePortBase",
+        "externalTrafficPolicy",
+        "annotations",
+        "loadBalancerIP"
+      ]
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "apiVersion": {
+          "type": "string"
+        },
+        "parentRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "namespace": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "sectionNames": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "game": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "steam": {
+              "type": "string"
+            },
+            "von": {
+              "type": "string"
+            },
+            "battleye": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "game",
+            "query",
+            "steam",
+            "von",
+            "battleye"
+          ]
+        },
+        "annotations": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "apiVersion",
+        "parentRefs",
+        "sectionNames",
+        "annotations"
+      ]
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingClaim": {
+              "type": "string"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*(Mi|Gi|Ti)$"
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ReadWriteOnce",
+                  "ReadWriteMany",
+                  "ReadWriteOncePod"
+                ]
+              },
+              "minItems": 1
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "retain": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled",
+            "existingClaim",
+            "size",
+            "storageClass",
+            "accessModes",
+            "annotations",
+            "retain"
+          ]
+        },
+        "workshop": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "existingClaim": {
+              "type": "string"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*(Mi|Gi|Ti)$"
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ReadWriteOnce",
+                  "ReadWriteMany",
+                  "ReadWriteOncePod"
+                ]
+              },
+              "minItems": 1
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "retain": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled",
+            "existingClaim",
+            "size",
+            "storageClass",
+            "accessModes",
+            "annotations",
+            "retain"
+          ]
+        }
+      },
+      "required": [
+        "data",
+        "workshop"
+      ]
+    },
+    "resources": {
+      "type": "object"
+    },
+    "bootstrapResources": {
+      "type": "object"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {}
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "podLabels": {
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "securityContext": {
+      "type": "object"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "startupProbe": {
+      "type": "object"
+    },
+    "readinessProbe": {
+      "type": "object"
+    },
+    "livenessProbe": {
+      "type": "object"
+    },
+    "extraEnv": {
+      "type": "array",
+      "items": {}
+    },
+    "extraVolumes": {
+      "type": "array",
+      "items": {}
+    },
+    "extraVolumeMounts": {
+      "type": "array",
+      "items": {}
+    }
+  },
+  "required": [
+    "nameOverride",
+    "fullnameOverride",
+    "image",
+    "imagePullSecrets",
+    "steam",
+    "bootstrap",
+    "mods",
+    "server",
+    "service",
+    "gateway",
+    "persistence",
+    "resources",
+    "bootstrapResources",
+    "nodeSelector",
+    "tolerations",
+    "affinity",
+    "podAnnotations",
+    "podLabels",
+    "podSecurityContext",
+    "securityContext",
+    "terminationGracePeriodSeconds",
+    "startupProbe",
+    "readinessProbe",
+    "livenessProbe",
+    "extraEnv",
+    "extraVolumes",
+    "extraVolumeMounts"
+  ],
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Arma 3 chart values"
+}

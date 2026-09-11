@@ -1,0 +1,8 @@
+# Lists replace defaults: never load Community and Ultimate together.
+mods:
+  workshop:
+    - "2867537125"
+server:
+  hostname: Antistasi Community
+  mission:
+    template: Antistasi_Altis.Altis

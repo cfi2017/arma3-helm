@@ -1,0 +1,14 @@
+Arma 3 is bootstrapping. Initial Steam downloads may take an hour or more.
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "arma3.fullname" . }} -c bootstrap -f
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "arma3.fullname" . }} -c arma3 -f
+
+{{ if eq .Values.service.type "NodePort" -}}
+Connect to a reachable IP of the node running the pod, UDP {{ .Values.server.port }}.
+Open/forward UDP {{ .Values.server.port }}-{{ add (int .Values.server.port) 4 }} on that node.
+{{ else -}}
+Connect to your Gateway/LoadBalancer IP, UDP {{ .Values.server.port }}.
+{{ end -}}
+All players must load the same client mods as the server. Log in using
+#login <admin password>, take the Commander slot, then configure the campaign.
+PVCs retain campaign saves by default. Save in Antistasi before restarting.
+See https://github.com/cfi2017/arma3-helm for first-game and recovery instructions.

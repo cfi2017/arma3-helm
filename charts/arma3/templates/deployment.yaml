@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arma3.fullname" . }}
+  labels:
+    {{- include "arma3.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "arma3.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "arma3.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: bootstrap
+          image: {{ include "arma3.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [python3, /chart/runtime.py, bootstrap]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: STEAM_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.steam.existingSecret }}
+                  key: {{ .Values.steam.usernameKey }}
+            - name: STEAM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.steam.existingSecret }}
+                  key: {{ .Values.steam.passwordKey }}
+            {{- with .Values.steam.branchPasswordKey }}
+            - name: STEAM_BRANCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.steam.existingSecret }}
+                  key: {{ . }}
+            {{- end }}
+            {{- if not .Values.server.existingConfigSecret }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.admin.existingSecret }}
+                  key: {{ .Values.server.admin.passwordKey }}
+            {{- if .Values.server.password.existingSecret }}
+            - name: SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.password.existingSecret }}
+                  key: {{ .Values.server.password.passwordKey }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.bootstrapResources | nindent 12 }}
+          volumeMounts:
+            {{- include "arma3.mounts" . | nindent 12 }}
+            {{- if .Values.server.existingConfigSecret }}
+            - name: server-config
+              mountPath: /server-config
+              readOnly: true
+            {{- end }}
+      containers:
+        - name: arma3
+          image: {{ include "arma3.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [python3, /chart/runtime.py, run]
+          workingDir: /arma3
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            {{- range $i, $name := list "game" "query" "steam" "von" "battleye" }}
+            - name: {{ $name }}
+              containerPort: {{ add (int $.Values.server.port) $i }}
+              protocol: UDP
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          lifecycle:
+            preStop:
+              exec:
+                command: [python3, /chart/runtime.py, stop]
+          volumeMounts:
+            {{- include "arma3.mounts" . | nindent 12 }}
+      volumes:
+        {{- range $key, $pvc := .Values.persistence }}
+        - name: {{ $key }}
+          {{- if $pvc.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ $pvc.existingClaim }}
+          {{- else if $pvc.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "arma3.fullname" $ }}-{{ $key }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        - name: chart
+          configMap:
+            name: {{ include "arma3.fullname" . }}
+        {{- if .Values.server.existingConfigSecret }}
+        - name: server-config
+          secret:
+            secretName: {{ .Values.server.existingConfigSecret }}
+            items:
+              - key: {{ .Values.server.configKey }}
+                path: server.cfg
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

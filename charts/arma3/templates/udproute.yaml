@@ -1,0 +1,35 @@
+{{- if .Values.gateway.enabled }}
+{{- range $i, $name := list "game" "query" "steam" "von" "battleye" }}
+---
+apiVersion: {{ $.Values.gateway.apiVersion }}
+kind: UDPRoute
+metadata:
+  name: {{ include "arma3.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "arma3.labels" $ | nindent 4 }}
+  {{- with $.Values.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- range $parent := $.Values.gateway.parentRefs }}
+    - name: {{ $parent.name }}
+      {{- with $parent.namespace }}
+      namespace: {{ . }}
+      {{- end }}
+      group: gateway.networking.k8s.io
+      kind: Gateway
+      {{- if index $.Values.gateway.sectionNames $name }}
+      sectionName: {{ index $.Values.gateway.sectionNames $name }}
+      {{- else }}
+      port: {{ add (int $.Values.server.port) $i }}
+      {{- end }}
+    {{- end }}
+  rules:
+    - backendRefs:
+        - name: {{ include "arma3.fullname" $ }}
+          port: {{ add (int $.Values.server.port) $i }}
+          weight: 1
+{{- end }}
+{{- end }}

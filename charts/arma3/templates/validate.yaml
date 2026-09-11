@@ -1,0 +1,13 @@
+{{- if and (eq .Values.service.type "NodePort") (ne (int .Values.server.port) (int .Values.service.nodePortBase)) }}
+{{- fail "NodePort requires server.port == service.nodePortBase so Arma advertises reachable ports" }}
+{{- end }}
+{{- if and .Values.gateway.enabled (not .Values.gateway.parentRefs) }}
+{{- fail "gateway.enabled requires gateway.parentRefs for an existing UDP Gateway" }}
+{{- end }}
+{{- if and (not .Values.server.existingConfigSecret) (not .Values.server.admin.existingSecret) }}
+{{- fail "server.admin.existingSecret is required unless server.existingConfigSecret is set" }}
+{{- end }}
+{{- $ids := concat .Values.mods.workshop .Values.mods.serverWorkshop }}
+{{- if ne (len $ids) (len (uniq $ids)) }}
+{{- fail "Workshop IDs must be unique across mods.workshop and mods.serverWorkshop" }}
+{{- end }}

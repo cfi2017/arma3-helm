@@ -1,0 +1,9 @@
+.direnv/
+result
+result-*
+*.tgz
+__pycache__/
+*.pyc
+.env
+
+dist/

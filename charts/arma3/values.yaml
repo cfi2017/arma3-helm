@@ -1,0 +1,149 @@
+nameOverride: ""
+fullnameOverride: ""
+image:
+  repository: ghcr.io/brettmayson/arma3server/arma3server
+  tag: latest
+  # Verified SteamCMD /arma3 layout. The upstream v2 branch is incompatible.
+  digest: sha256:951fb164243d35d815259a9ddd2f9ce7b5375d366c665ee7c78e752717fde815
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+steam:
+  existingSecret: arma3-steam
+  usernameKey: username
+  passwordKey: password
+  branch: public
+  # Optional key in the same secret; leave empty for public branches.
+  branchPasswordKey: ""
+bootstrap:
+  # Always checks for updates on pod creation; if-missing uses a success marker.
+  updatePolicy: always
+  validate: true
+  retries: 3
+  retryDelaySeconds: 15
+  timeoutSeconds: 7200
+mods:
+  # Individual Workshop IDs, not collections. Include dependencies explicitly.
+  workshop:
+    - "3020755032" # Antistasi Ultimate (includes the Altis mission)
+  serverWorkshop: []
+  # Additional mod directories under /arma3; upload content to the data PVC.
+  local: []
+  serverLocal: []
+server:
+  hostname: Antistasi Ultimate
+  maxPlayers: 32
+  # Matching NodePort and game port avoids Steam advertising an internal port.
+  port: 32302
+  profile: antistasi
+  binary: ./arma3server_x64
+  world: empty
+  limitFPS: 60
+  # Each item is one argument, never shell-expanded.
+  extraArgs: ["-noSound"]
+  cdlc: []
+  persistent: true
+  battleye: true
+  verifySignatures: 2
+  allowedFilePatching: 0
+  admin:
+    existingSecret: arma3-admin
+    passwordKey: password
+    uids: []
+  password:
+    existingSecret: ""
+    passwordKey: password
+  mission:
+    template: Antistasi_Altis.Altis
+    difficulty: Regular
+    parameters:
+      autoLoadLastGame: 60
+      LogLevel: 2
+      A3A_logDebugConsole: 1
+  # Literal server.cfg additions. Do not put passwords in Helm values.
+  extraConfig: ""
+  # Override the entire generated config using this Secret (including passwords).
+  existingConfigSecret: ""
+  configKey: server.cfg
+service:
+  type: NodePort # NodePort, ClusterIP or LoadBalancer
+  # Must equal server.port for NodePort; five consecutive ports are reserved.
+  nodePortBase: 32302
+  externalTrafficPolicy: Local
+  annotations: {}
+  loadBalancerIP: ""
+gateway:
+  enabled: false
+  apiVersion: gateway.networking.k8s.io/v1alpha2
+  # Existing Gateway; its listeners must use UDP and allow this namespace.
+  parentRefs: []
+  # Optional listener sectionName for each route; empty attaches by port.
+  sectionNames:
+    game: ""
+    query: ""
+    steam: ""
+    von: ""
+    battleye: ""
+  annotations: {}
+persistence:
+  data:
+    enabled: true
+    existingClaim: ""
+    size: 40Gi
+    storageClass: "" # empty = cluster default; '-' = no storage class
+    accessModes: [ReadWriteOnce]
+    annotations: {}
+    retain: true
+  workshop:
+    enabled: true
+    existingClaim: ""
+    size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    annotations: {}
+    retain: true
+resources:
+  requests:
+    cpu: "2"
+    memory: 4Gi
+  limits:
+    memory: 8Gi
+bootstrapResources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+# Image requires Linux amd64. PVC ownership is initialized by the container user.
+nodeSelector:
+  kubernetes.io/os: linux
+  kubernetes.io/arch: amd64
+tolerations: []
+affinity: {}
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
+terminationGracePeriodSeconds: 120
+# Downloading occurs in an init container, outside the startup probe budget.
+startupProbe:
+  exec:
+    command: [python3, /chart/runtime.py, health]
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 90
+readinessProbe:
+  exec:
+    command: [python3, /chart/runtime.py, health]
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+# No automatic liveness restart during long mission loads or saves.
+livenessProbe: {}
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

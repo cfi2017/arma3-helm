@@ -1,0 +1,55 @@
+# Apply separately after installing a Gateway controller with UDPRoute support
+# and the experimental Gateway API CRDs. Replace gatewayClassName.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: games
+  namespace: gateway-system
+spec:
+  gatewayClassName: YOUR-UDP-GATEWAY-CLASS
+  listeners:
+    - name: arma-game
+      protocol: UDP
+      port: 2302
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: arma3
+    - name: arma-query
+      protocol: UDP
+      port: 2303
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: arma3
+    - name: arma-steam
+      protocol: UDP
+      port: 2304
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: arma3
+    - name: arma-von
+      protocol: UDP
+      port: 2305
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: arma3
+    - name: arma-battleye
+      protocol: UDP
+      port: 2306
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: arma3

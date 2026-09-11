@@ -1,0 +1,5 @@
+persistence:
+  data:
+    existingClaim: arma3-data
+  workshop:
+    existingClaim: arma3-workshop

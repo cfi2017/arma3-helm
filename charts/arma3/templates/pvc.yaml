@@ -1,0 +1,30 @@
+{{- range $key, $pvc := .Values.persistence }}
+{{- if and $pvc.enabled (not $pvc.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "arma3.fullname" $ }}-{{ $key }}
+  labels:
+    {{- include "arma3.labels" $ | nindent 4 }}
+  {{- if or $pvc.retain $pvc.annotations }}
+  annotations:
+    {{- with $pvc.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $pvc.retain }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+  {{- end }}
+spec:
+  accessModes: {{ $pvc.accessModes | toJson }}
+  {{- if eq $pvc.storageClass "-" }}
+  storageClassName: ""
+  {{- else if $pvc.storageClass }}
+  storageClassName: {{ $pvc.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $pvc.size }}
+{{- end }}
+{{- end }}
