@@ -21,7 +21,7 @@ kubectl -n arma3 create secret generic arma3-admin \
 # Available after the publishing workflow succeeds and the package is public:
 helm upgrade --install antistasi \
   oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  --version 0.2.3 --namespace arma3 --wait --timeout 120m
+  --version 0.2.4 --namespace arma3 --wait --timeout 120m
 
 # Or install directly from this checkout:
 helm upgrade --install antistasi ./charts/arma3 \
@@ -73,7 +73,7 @@ Saved authentication is reused where Steam supports it; approvals can expire or 
 
 ```sh
 helm upgrade antistasi oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  -n arma3 --version 0.2.3 --reset-then-reuse-values --wait --timeout 150m
+  -n arma3 --version 0.2.4 --reset-then-reuse-values --wait --timeout 150m
 ```
 
 For older Helm, use `--reset-values -f your-values.yaml` instead. Plain `--reuse-values` can omit the new defaults. Use your actual namespace (for example `app-arma3-antistasi`) in both the upgrade and attach commands. Avoid `--atomic` during first authentication: an unattended Helm timeout could roll back the waiting pod. GitOps installations should set a Helm timeout long enough for approval plus the first downloads.
@@ -103,7 +103,7 @@ All five ports are exposed. `server.port` defines the base; the query port is ex
 For Gateway API:
 
 ```sh
-# Install a UDP-capable Gateway controller and experimental Gateway API CRDs first.
+# Install a UDP-capable Gateway controller and Gateway API v1.6 CRDs first.
 # Edit the GatewayClass and namespace as appropriate for your cluster:
 kubectl apply -f examples/gateway-resource.yaml
 helm upgrade --install antistasi ./charts/arma3 -n arma3 \
@@ -111,7 +111,7 @@ helm upgrade --install antistasi ./charts/arma3 -n arma3 \
 kubectl -n arma3 get udproutes
 ```
 
-The chart creates **one UDPRoute per port** against an existing Gateway. `examples/gateway.yaml` switches to ClusterIP and ports 2302–2306. The sample Gateway listens on those same ports and permits routes from namespace `arma3`; create its `gateway-system` namespace first if it does not exist. Replace `YOUR-UDP-GATEWAY-CLASS` with your controller's class. UDPRoute is experimental (`v1alpha2`) and **not supported by every Gateway controller**. The chart does not install CRDs or a controller. Verify `Accepted=True` and `ResolvedRefs=True` on all routes, and the Gateway's address/listener status. Route schema validation is based on Gateway API v1.2.1.
+The chart creates **one stable v1 UDPRoute per port** against an existing Gateway. `examples/gateway.yaml` switches to ClusterIP and ports 2302–2306. The sample Gateway listens on those same ports and permits routes from namespace `arma3`; create its `gateway-system` namespace first if it does not exist. Replace `YOUR-UDP-GATEWAY-CLASS` with your controller's class. UDPRoute support remains controller-dependent. The chart does not install CRDs or a controller. Verify `Accepted=True` and `ResolvedRefs=True` on all routes, and the Gateway's address/listener status. Route schema validation is based on Gateway API v1.6.0.
 
 To use stable Gateway API v1 `ListenerSet` resources, set `gateway.listenerSet.enabled: true` and keep exactly one entry in `gateway.parentRefs`. The chart creates one ListenerSet containing the five UDP listeners and changes every UDPRoute parentRef to that ListenerSet. Listener names come from `gateway.sectionNames` when supplied, otherwise they are `game`, `query`, `steam`, `von`, and `battleye`. Gateway API v1.6 Gateways deny ListenerSet attachment by default, so the Gateway must set `spec.allowedListeners` for the release namespace; see `examples/gateway-resource.yaml` and `examples/listenerset.yaml`. ListenerSet and UDPRoute support remains controller-dependent, and the chart does not install either CRD.
 

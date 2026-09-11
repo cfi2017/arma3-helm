@@ -56,7 +56,7 @@ class ChartTest(unittest.TestCase):
         objects = render(yaml.safe_load(Path('examples/gateway.yaml').read_text()))
         routes = kind(objects, 'UDPRoute')
         self.assertEqual(len(routes), 5)
-        schema = json.loads(Path('tests/schemas/udproute_v1alpha2.json').read_text())
+        schema = json.loads(Path('tests/schemas/udproute_v1.json').read_text())
         for i, route in enumerate(routes):
             jsonschema.validate(route, schema)
             ref = route['spec']['rules'][0]['backendRefs'][0]
@@ -64,6 +64,7 @@ class ChartTest(unittest.TestCase):
             self.assertEqual(ref['port'], 2302 + i)
             self.assertIn('sectionName', route['spec']['parentRefs'][0])
         self.assertTrue(all('nodePort' not in p for p in kind(objects, 'Service')[0]['spec']['ports']))
+        self.assertTrue(all(route['apiVersion'] == 'gateway.networking.k8s.io/v1' for route in routes))
 
     def test_gateway_port_attachment_and_nodeport_together(self):
         objects = render({'gateway': {'enabled': True, 'parentRefs': [{'name': 'games'}]}})
