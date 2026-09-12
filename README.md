@@ -6,7 +6,7 @@ The [linked beginners guide](https://official-antistasi-community.github.io/A3-A
 
 ## Install
 
-Requirements: Kubernetes 1.26+, Helm 3, a Linux amd64 node, a default storage class (or existing PVCs), and reachable UDP ports. Allow roughly 40 GiB for game data and 20 GiB for the default mod cache, plus 1 GiB for Steam authentication/client state; larger modsets/CDLCs need more. Requests are 2 CPU / 4 GiB RAM with an 8 GiB memory limit. Fast single-core performance matters; adjust for your campaign and player count.
+Requirements: Kubernetes 1.26+, Helm 3, a Linux amd64 node, a default storage class (or existing PVCs), and reachable UDP ports. Allow roughly 80 GiB for base game data and 20 GiB for the default mod cache, plus 1 GiB for Steam authentication/client state; larger modsets/CDLCs need more. Requests are 2 CPU / 4 GiB RAM with an 8 GiB memory limit. Fast single-core performance matters; adjust for your campaign and player count.
 
 Create credentials in the release namespace using your secret manager or these placeholder commands. **Passwords are never Helm values or generated Kubernetes Secrets.**
 
