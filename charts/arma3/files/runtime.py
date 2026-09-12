@@ -231,21 +231,33 @@ def extract_mission_pbo(pbo, template):
             method, _, _, _, size = struct.unpack('<5I', header)
             entries.append((name_bytes.decode('utf-8'), method, size))
         data_offset = stream.tell()
+        mission_roots = set()
+        for name, _, _ in entries:
+            parts = name.replace('\\', '/').split('/')
+            if not parts or parts[-1].lower() != 'mission.sqm':
+                continue
+            candidates = [part for part in parts[:-1] if '.' in part]
+            if candidates:
+                root = candidates[-1]
+                if (root.lower() == template.lower()
+                        or root.lower().startswith(template.split('.')[0].lower())):
+                    mission_roots.add(root)
         wanted = []
         offset = data_offset
         for name, method, size in entries:
             normalized = name.replace('\\', '/')
             parts = normalized.split('/')
-            if template in parts:
-                index = parts.index(template)
-                wanted.append((parts[index + 1:], method, size, offset))
+            roots = [index for index, part in enumerate(parts) if part in mission_roots]
+            if roots:
+                index = roots[-1]
+                wanted.append((parts[index + 1:], method, size, offset, parts[index]))
             offset += size
         if not wanted:
             return []
-        for relative, method, size, offset in wanted:
+        for relative, method, size, offset, root in wanted:
             if method != 0:
                 raise RuntimeError('Compressed mission PBO is unsupported: ' + str(pbo))
-            destination = ROOT / 'mpmissions' / template / Path(*relative)
+            destination = ROOT / 'mpmissions' / root / Path(*relative)
             destination.parent.mkdir(parents=True, exist_ok=True)
             stream.seek(offset)
             with destination.open('wb') as output:
@@ -256,7 +268,7 @@ def extract_mission_pbo(pbo, template):
                         raise RuntimeError('Truncated mission PBO: ' + str(pbo))
                     output.write(chunk)
                     remaining -= len(chunk)
-    return [template]
+    return sorted({root for _, _, _, _, root in wanted})
 
 
 def mod_paths(settings, server_only=False):
