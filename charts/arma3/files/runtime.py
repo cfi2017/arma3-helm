@@ -288,6 +288,7 @@ def bootstrap(settings):
     opts, server = settings['bootstrap'], settings['server']
     game_marker = ROOT / '.chart/game.json'
     game_identity = json.dumps({'branch': settings['steam']['branch'],
+                                'baseGame': settings['steam']['installBaseGame'],
                                 'cdlc': server['cdlc']}, sort_keys=True)
     binary = ROOT / server['binary']
     commands, expected, pending_mods = [], [], []
@@ -295,6 +296,13 @@ def bootstrap(settings):
                     or not game_marker.exists() or game_marker.read_text() != game_identity)
     if install_game:
         game_marker.unlink(missing_ok=True)
+        if settings['steam']['installBaseGame']:
+            commands += ['+app_update', '107410', '-beta', settings['steam']['branch']]
+            if os.environ.get('STEAM_BRANCH_PASSWORD'):
+                commands += ['-betapassword', os.environ['STEAM_BRANCH_PASSWORD']]
+            if opts['validate']:
+                commands += ['validate']
+            expected.append("Success! App '107410' fully installed.")
         commands += ['+app_update', '233780', '-beta', settings['steam']['branch']]
         if os.environ.get('STEAM_BRANCH_PASSWORD'):
             commands += ['-betapassword', os.environ['STEAM_BRANCH_PASSWORD']]
@@ -324,6 +332,8 @@ def bootstrap(settings):
         if not binary.is_file():
             raise RuntimeError('Server binary missing after installation: ' + str(binary))
         atomic_write(game_marker, game_identity)
+    if settings['steam']['installBaseGame'] and not (ROOT / 'addons/a3_map_altis.pbo').is_file():
+        raise RuntimeError('Base Arma 3 content is missing: /arma3/addons/a3_map_altis.pbo; install app 107410 or disable installBaseGame')
     for item, path, marker in pending_mods:
         lower_tree(path)
         if not mod_valid(path):

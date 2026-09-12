@@ -48,6 +48,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "installBaseGame": {
+          "type": "boolean"
+        },
         "existingSecret": {
           "type": "string",
           "minLength": 1
@@ -72,6 +75,7 @@
         }
       },
       "required": [
+        "installBaseGame",
         "existingSecret",
         "usernameKey",
         "passwordKey",

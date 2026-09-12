@@ -8,6 +8,9 @@ image:
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 steam:
+  # Install the base Arma 3 content depot (107410), required for Altis and
+  # vanilla game assets in addition to the dedicated-server depot.
+  installBaseGame: true
   # Time allowed for login/Steam Guard, separate from the download timeout.
   authTimeoutSeconds: 1800
   existingSecret: arma3-steam
@@ -108,7 +111,7 @@ persistence:
   data:
     enabled: true
     existingClaim: ""
-    size: 40Gi
+    size: 80Gi
     storageClass: "" # empty = cluster default; '-' = no storage class
     accessModes: [ReadWriteOnce]
     annotations: {}

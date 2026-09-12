@@ -52,6 +52,8 @@ class RuntimeTest(unittest.TestCase):
     def fake_download(self, settings, commands, expected):
         if '+app_update' in commands:
             (self.root / 'arma3server_x64').touch()
+            (self.root / 'addons').mkdir(exist_ok=True)
+            (self.root / 'addons/a3_map_altis.pbo').touch()
         for i, command in enumerate(commands):
             if command != '+workshop_download_item':
                 continue
@@ -87,6 +89,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertFalse((self.root / '.chart/game.json').exists())
 
     def test_success_message_without_mod_files_fails(self):
+        self.settings['steam']['installBaseGame'] = False
         (self.root / 'arma3server_x64').touch()
         with patch.object(runtime, 'steamcmd'):
             with self.assertRaisesRegex(RuntimeError, 'no PBOs'):
