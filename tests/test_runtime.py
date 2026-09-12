@@ -209,3 +209,10 @@ class RuntimeTest(unittest.TestCase):
         (mission / 'mission.sqm').write_text('class Mission {};')
         runtime.stage_workshop_missions(self.settings)
         self.assertTrue((self.root / 'mpmissions/Antistasi_Altis.Altis/mission.sqm').exists())
+
+    def test_workshop_mission_pbo_is_staged(self):
+        addons = self.workshop / '3020755032' / 'addons'
+        addons.mkdir(parents=True)
+        (addons / 'Antistasi_Altis.Altis.pbo').write_bytes(b'PBO')
+        runtime.stage_workshop_missions(self.settings)
+        self.assertEqual((self.root / 'mpmissions/Antistasi_Altis.Altis.pbo').read_bytes(), b'PBO')

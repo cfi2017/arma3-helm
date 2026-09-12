@@ -191,8 +191,15 @@ def workshop_mod_paths(path):
 
 def stage_workshop_missions(settings):
     """Expose mission folders bundled inside Workshop mods to Arma's mpmissions."""
+    (ROOT / 'mpmissions').mkdir(parents=True, exist_ok=True)
     staged = []
     for root in mod_paths(settings):
+        for mission_pbo in root.rglob('*.pbo'):
+            if '.' not in mission_pbo.stem:
+                continue
+            destination = ROOT / 'mpmissions' / mission_pbo.name
+            shutil.copyfile(mission_pbo, destination)
+            staged.append(mission_pbo.stem)
         for mission_file in root.rglob('mission.sqm'):
             mission = mission_file.parent
             name = mission.name
