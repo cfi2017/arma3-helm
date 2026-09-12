@@ -73,7 +73,7 @@ Saved authentication is reused where Steam supports it; approvals can expire or 
 
 ```sh
 helm upgrade antistasi oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  -n arma3 --version 0.4.1 --reset-then-reuse-values --wait --timeout 180m
+  -n arma3 --version 0.4.2 --reset-then-reuse-values --wait --timeout 180m
 ```
 
 For older Helm, use `--reset-values -f your-values.yaml` instead. Plain `--reuse-values` can omit the new defaults. Use your actual namespace (for example `app-arma3-antistasi`) in both the upgrade and attach commands. Avoid `--atomic` during first authentication: an unattended Helm timeout could roll back the waiting pod. GitOps installations should set a Helm timeout long enough for approval plus the first downloads.
