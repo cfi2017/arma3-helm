@@ -111,7 +111,7 @@ persistence:
   data:
     enabled: true
     existingClaim: ""
-    size: 120Gi
+    size: 80Gi
     storageClass: "" # empty = cluster default; '-' = no storage class
     accessModes: [ReadWriteOnce]
     annotations: {}
@@ -119,7 +119,7 @@ persistence:
   workshop:
     enabled: true
     existingClaim: ""
-    size: 20Gi
+    size: 120Gi
     storageClass: ""
     accessModes: [ReadWriteOnce]
     annotations: {}

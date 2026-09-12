@@ -6,7 +6,7 @@ The [linked beginners guide](https://official-antistasi-community.github.io/A3-A
 
 ## Install
 
-Requirements: Kubernetes 1.26+, Helm 3, a Linux amd64 node, a default storage class (or existing PVCs), and reachable UDP ports. Allow roughly 120 GiB for base game data and 20 GiB for the default mod cache, plus 1 GiB for Steam authentication/client state; larger modsets/CDLCs need more. Requests are 2 CPU / 4 GiB RAM with an 8 GiB memory limit. Fast single-core performance matters; adjust for your campaign and player count.
+Requirements: Kubernetes 1.26+, Helm 3, a Linux amd64 node, a default storage class (or existing PVCs), and reachable UDP ports. Allow roughly 80 GiB for base game data and 120 GiB for the Steam download/cache volume, plus 1 GiB for Steam authentication/client state; larger modsets/CDLCs need more. Requests are 2 CPU / 4 GiB RAM with an 8 GiB memory limit. Fast single-core performance matters; adjust for your campaign and player count.
 
 Create credentials in the release namespace using your secret manager or these placeholder commands. **Passwords are never Helm values or generated Kubernetes Secrets.**
 
@@ -21,7 +21,7 @@ kubectl -n arma3 create secret generic arma3-admin \
 # Available after the publishing workflow succeeds and the package is public:
 helm upgrade --install antistasi \
   oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  --version 0.4.3 --namespace arma3 --wait --timeout 240m
+  --version 0.4.4 --namespace arma3 --wait --timeout 240m
 
 # Or install directly from this checkout:
 helm upgrade --install antistasi ./charts/arma3 \
@@ -73,7 +73,7 @@ Saved authentication is reused where Steam supports it; approvals can expire or 
 
 ```sh
 helm upgrade antistasi oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  -n arma3 --version 0.4.3 --reset-then-reuse-values --wait --timeout 240m
+  -n arma3 --version 0.4.4 --reset-then-reuse-values --wait --timeout 240m
 ```
 
 For older Helm, use `--reset-values -f your-values.yaml` instead. Plain `--reuse-values` can omit the new defaults. Use your actual namespace (for example `app-arma3-antistasi`) in both the upgrade and attach commands. Avoid `--atomic` during first authentication: an unattended Helm timeout could roll back the waiting pod. GitOps installations should set a Helm timeout long enough for approval plus the first downloads.
