@@ -2,7 +2,7 @@ apiVersion: v2
 name: arma3
 description: Persistent Arma 3 dedicated server with Steam Workshop bootstrap and Antistasi defaults
 type: application
-version: 0.3.3
+version: 0.3.4
 appVersion: "steamcmd"
 kubeVersion: ">=1.26.0-0"
 home: https://github.com/cfi2017/arma3-helm
