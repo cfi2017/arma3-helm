@@ -21,7 +21,7 @@ kubectl -n arma3 create secret generic arma3-admin \
 # Available after the publishing workflow succeeds and the package is public:
 helm upgrade --install antistasi \
   oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  --version 0.4.1 --namespace arma3 --wait --timeout 180m
+  --version 0.4.2 --namespace arma3 --wait --timeout 180m
 
 # Or install directly from this checkout:
 helm upgrade --install antistasi ./charts/arma3 \

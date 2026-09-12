@@ -299,13 +299,17 @@ def bootstrap(settings):
     if install_game:
         game_marker.unlink(missing_ok=True)
         if settings['steam']['installBaseGame']:
-            commands += ['+app_update', '107410', '-beta', settings['steam']['branch']]
+            # The full game is published as Windows content; its PBO assets
+            # are platform-neutral and are valid inputs for the Linux server.
+            commands += ['+@sSteamCmdForcePlatformType', 'windows',
+                         '+app_update', '107410', '-beta', settings['steam']['branch']]
             if os.environ.get('STEAM_BRANCH_PASSWORD'):
                 commands += ['-betapassword', os.environ['STEAM_BRANCH_PASSWORD']]
             if opts['validate']:
                 commands += ['validate']
             expected.append("Success! App '107410' fully installed.")
-        commands += ['+app_update', '233780', '-beta', settings['steam']['branch']]
+        commands += ['+@sSteamCmdForcePlatformType', 'linux',
+                     '+app_update', '233780', '-beta', settings['steam']['branch']]
         if os.environ.get('STEAM_BRANCH_PASSWORD'):
             commands += ['-betapassword', os.environ['STEAM_BRANCH_PASSWORD']]
         if opts['validate']:
