@@ -57,8 +57,7 @@ server:
     existingSecret: ""
     passwordKey: password
   mission:
-    # Ultimate registers this addon mission as class Antistasi_Altis.
-    template: Antistasi_Altis
+    template: Antistasi_Altis.Altis
     difficulty: Regular
     parameters:
       autoLoadLastGame: 60
