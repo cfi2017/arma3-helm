@@ -21,7 +21,7 @@ kubectl -n arma3 create secret generic arma3-admin \
 # Available after the publishing workflow succeeds and the package is public:
 helm upgrade --install antistasi \
   oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  --version 0.3.1 --namespace arma3 --wait --timeout 120m
+  --version 0.3.2 --namespace arma3 --wait --timeout 120m
 
 # Or install directly from this checkout:
 helm upgrade --install antistasi ./charts/arma3 \
@@ -73,7 +73,7 @@ Saved authentication is reused where Steam supports it; approvals can expire or 
 
 ```sh
 helm upgrade antistasi oci://ghcr.io/cfi2017/arma3-helm/charts/arma3 \
-  -n arma3 --version 0.3.1 --reset-then-reuse-values --wait --timeout 150m
+  -n arma3 --version 0.3.2 --reset-then-reuse-values --wait --timeout 150m
 ```
 
 For older Helm, use `--reset-values -f your-values.yaml` instead. Plain `--reuse-values` can omit the new defaults. Use your actual namespace (for example `app-arma3-antistasi`) in both the upgrade and attach commands. Avoid `--atomic` during first authentication: an unattended Helm timeout could roll back the waiting pod. GitOps installations should set a Helm timeout long enough for approval plus the first downloads.
@@ -81,7 +81,7 @@ For older Helm, use `--reset-values -f your-values.yaml` instead. Plain `--reuse
 ## First campaign
 
 1. Every player subscribes to **the same Antistasi variant and client mods** configured on the server and enables them in the Arma launcher. Server-only mods need not be loaded by players.
-2. Direct-connect to the external IP and game port. The server starts its configured mission cycle automatically (`-autoInit`) and selects `Antistasi_Altis.Altis`; the mission is bundled in the mod, so there is no separate mission PBO to download.
+2. Direct-connect to the external IP and game port. The server starts its configured mission cycle automatically (`-autoInit`) and selects the Ultimate `Antistasi_Altis` mission class; the mission is registered by the mod, so there is no separate mission PBO to download.
 3. Open text chat and enter `#login <admin password>`. A voted admin is insufficient for Antistasi's setup UI. Take the Default Commander slot and configure the new campaign/factions. Start with vanilla factions and only add the mods you actually want.
 4. On subsequent starts, `autoLoadLastGame: 60` loads the last campaign 60 seconds after the first player connects if no admin is logged in. It does not create a configured campaign without the initial setup. Use `0` to disable autoload.
 5. Save through Antistasi before upgrades/restarts. **Ultimate's Workshop page specifically advises Linux servers to untick “Use New Save file”.** Confirm a save/load round trip before investing in a long campaign. Community Edition and Ultimate saves/options are not interchangeable.
