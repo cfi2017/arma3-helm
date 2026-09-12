@@ -281,6 +281,8 @@ def mod_paths(settings, server_only=False):
 
 def bootstrap(settings):
     os.chdir(ROOT)
+    # Older Helm reuse-values modes may omit newly added settings.
+    settings['steam'].setdefault('installBaseGame', True)
     for directory in ('configs/profiles', 'mpmissions', 'keys', '.chart'):
         (ROOT / directory).mkdir(parents=True, exist_ok=True)
     # Fail early on bad config, before downloading gigabytes.
