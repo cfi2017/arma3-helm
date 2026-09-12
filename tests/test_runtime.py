@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 import tempfile
 import unittest
+import struct
 from unittest.mock import patch
 
 import yaml
@@ -213,6 +214,9 @@ class RuntimeTest(unittest.TestCase):
     def test_workshop_mission_pbo_is_staged(self):
         addons = self.workshop / '3020755032' / 'addons'
         addons.mkdir(parents=True)
-        (addons / 'Antistasi_Altis.Altis.pbo').write_bytes(b'PBO')
+        name = b'Antistasi_Altis.Altis/mission.sqm\0'
+        payload = b'class Mission {};'
+        header = struct.pack('<5I', 0, len(payload), 0, 0, len(payload))
+        (addons / 'maps.pbo').write_bytes(name + header + b'\0' * 21 + payload)
         runtime.stage_workshop_missions(self.settings)
-        self.assertEqual((self.root / 'mpmissions/Antistasi_Altis.Altis.pbo').read_bytes(), b'PBO')
+        self.assertEqual((self.root / 'mpmissions/Antistasi_Altis.Altis/mission.sqm').read_bytes(), payload)

@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import struct
 import stat
 import sys
 import time
@@ -193,13 +194,10 @@ def stage_workshop_missions(settings):
     """Expose mission folders bundled inside Workshop mods to Arma's mpmissions."""
     (ROOT / 'mpmissions').mkdir(parents=True, exist_ok=True)
     staged = []
+    template = settings['server']['mission']['template']
     for root in mod_paths(settings):
         for mission_pbo in root.rglob('*.pbo'):
-            if '.' not in mission_pbo.stem:
-                continue
-            destination = ROOT / 'mpmissions' / mission_pbo.name
-            shutil.copyfile(mission_pbo, destination)
-            staged.append(mission_pbo.stem)
+            staged.extend(extract_mission_pbo(mission_pbo, template))
         for mission_file in root.rglob('mission.sqm'):
             mission = mission_file.parent
             name = mission.name
@@ -210,6 +208,55 @@ def stage_workshop_missions(settings):
             staged.append(name)
     if staged:
         print('Staged Workshop missions: ' + ', '.join(sorted(set(staged))), flush=True)
+
+
+def extract_mission_pbo(pbo, template):
+    """Extract one mission directory from an uncompressed Arma PBO archive."""
+    entries = []
+    with pbo.open('rb') as stream:
+        while True:
+            name_bytes = bytearray()
+            while True:
+                byte = stream.read(1)
+                if not byte:
+                    return []
+                if byte == b'\0':
+                    break
+                name_bytes.extend(byte)
+            header = stream.read(20)
+            if len(header) != 20:
+                return []
+            if not name_bytes:
+                break
+            method, _, _, _, size = struct.unpack('<5I', header)
+            entries.append((name_bytes.decode('utf-8'), method, size))
+        data_offset = stream.tell()
+        wanted = []
+        offset = data_offset
+        for name, method, size in entries:
+            normalized = name.replace('\\', '/')
+            parts = normalized.split('/')
+            if template in parts:
+                index = parts.index(template)
+                wanted.append((parts[index + 1:], method, size, offset))
+            offset += size
+        if not wanted:
+            return []
+        for relative, method, size, offset in wanted:
+            if method != 0:
+                raise RuntimeError('Compressed mission PBO is unsupported: ' + str(pbo))
+            destination = ROOT / 'mpmissions' / template / Path(*relative)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            stream.seek(offset)
+            with destination.open('wb') as output:
+                remaining = size
+                while remaining:
+                    chunk = stream.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise RuntimeError('Truncated mission PBO: ' + str(pbo))
+                    output.write(chunk)
+                    remaining -= len(chunk)
+    return [template]
 
 
 def mod_paths(settings, server_only=False):
