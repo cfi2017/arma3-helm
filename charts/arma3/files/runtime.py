@@ -338,8 +338,8 @@ def bootstrap(settings):
         if not binary.is_file():
             raise RuntimeError('Server binary missing after installation: ' + str(binary))
         atomic_write(game_marker, game_identity)
-    if settings['steam']['installBaseGame'] and not (ROOT / 'addons/a3_map_altis.pbo').is_file():
-        raise RuntimeError('Base Arma 3 content is missing: /arma3/addons/a3_map_altis.pbo; install app 107410 or disable installBaseGame')
+    if settings['steam']['installBaseGame'] and not (ROOT / 'addons/map_altis.pbo').is_file():
+        raise RuntimeError('Base Arma 3 content is missing: /arma3/addons/map_altis.pbo; install app 107410 or disable installBaseGame')
     for item, path, marker in pending_mods:
         lower_tree(path)
         if not mod_valid(path):

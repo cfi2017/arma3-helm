@@ -53,7 +53,7 @@ class RuntimeTest(unittest.TestCase):
         if '+app_update' in commands:
             (self.root / 'arma3server_x64').touch()
             (self.root / 'addons').mkdir(exist_ok=True)
-            (self.root / 'addons/a3_map_altis.pbo').touch()
+            (self.root / 'addons/map_altis.pbo').touch()
         for i, command in enumerate(commands):
             if command != '+workshop_download_item':
                 continue
